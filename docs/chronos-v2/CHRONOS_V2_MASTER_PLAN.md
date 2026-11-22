@@ -1,7 +1,7 @@
 # Chronos V2 — Master Plan
 
-**Phase 0 complete (audit + foundation hardening)**  
-**Date:** 2026-11-22
+**Phase 0 complete · Phase 1 implemented · Phase 2 implemented (dual-read)**  
+**Date:** 2026-11-23
 
 ---
 
@@ -40,7 +40,7 @@
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Stack | Keep Next.js + Mongoose + NextAuth | Non-negotiable Phase 0 rule |
-| Tenancy | Design now; implement later | Avoid premature schema churn |
+| Tenancy | Organization + Workspace + Memberships | Implemented Phase 2; dual-read until enforce |
 | ACL precursor | Project owner/member/admin | Matches existing schema |
 | Google auth | Verify Firebase ID token server-side | Closes account takeover |
 | Queues | Defer introduction | Fix only if immediate; resume worker is Phase 1 |
@@ -93,16 +93,21 @@ Phase 0 (Foundation) ──► Phase 1 (Security & Reliability)
 
 ### Phase 2 — Multi-tenancy
 
-1. Organization / Workspace / Membership models  
-2. Default tenant backfill  
-3. Session active workspace  
-4. Enforce workspaceId on queries  
-5. Invitations  
+**Status: implemented on `feat/chronos-v2-phase-2` (requires staging migration + isolation verification).**
+
+1. [x] Organization / Workspace / Membership / Invitation models  
+2. [x] Idempotent default tenant migration (`migrate:tenancy`)  
+3. [x] Session active org/workspace + switch API  
+4. [x] Workspace isolation on core resource APIs (dual-read via `MULTI_TENANT_ENFORCE`)  
+5. [x] Invitations (hash-only tokens, SMTP send, accept/revoke)  
+6. [x] Switcher / onboarding / org+workspace settings UI  
+7. [ ] Operator `--apply` migration on staging DB clone  
+8. [ ] Set `MULTI_TENANT_ENFORCE=true` after backfill verification  
 
 ### Phase 3 — Async automation
 
 1. Job queue for workflow execution  
-2. Durable rate limiting shared across instances  
+2. Hosted cron / worker separation for long sequences  
 3. Webhooks (if product still requires n8n-class integrations)  
 
 ### Phase 4 — Product expansion
@@ -111,6 +116,8 @@ Phase 0 (Foundation) ──► Phase 1 (Security & Reliability)
 2. Password reset / email verification  
 3. Announcements + real notifications  
 4. Fine-grained permissions / teams  
+5. Billing at Organization boundary  
+
 
 ---
 
@@ -138,12 +145,22 @@ Every subsequent phase must:
 
 ## 9. Phase 1 → Phase 2 gate
 
-**Classification: Requires staging verification.**
+**Classification: Requires staging verification (not a code blocker for dual-read Phase 2).**
 
-Before Phase 2 (multi-tenancy):
+Outstanding Phase 1 manual checks (still open):
 
 1. Verify Google Cloud OAuth against real credentials.  
 2. Run secrets migration dry-run/`--apply` on a backed-up database.  
 3. Configure `/api/cron/workflows/resume` with `CHRONOS_CRON_SECRET`.  
 4. Set `ALLOW_PUBLIC_REGISTRATION=false` in staging/production.  
 5. Confirm CI green on the feature branch.
+
+## 10. Phase 2 → Phase 3 gate
+
+**Classification: Requires staging verification.**
+
+1. Run `migrate:tenancy` dry-run then `--apply` on a staging clone; verify counts.  
+2. Confirm cross-org IDOR tests on projects/tasks/docs/leads/workflows/chats.  
+3. Enable `MULTI_TENANT_ENFORCE=true` only after backfill verification.  
+4. Configure SMTP for invitations and test accept/revoke/replay.  
+5. Resolve remaining Phase 1 ops checks before production cutover.
