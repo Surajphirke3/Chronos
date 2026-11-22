@@ -15,5 +15,7 @@ const ProjectSchema = new Schema(
 
 ProjectSchema.index({ status: 1 })
 ProjectSchema.index({ ownerId: 1 })
+ProjectSchema.index({ members: 1 })
+ProjectSchema.index({ ownerId: 1, updatedAt: -1 })
 
 export const Project = (models.Project || model('Project', ProjectSchema)) as any

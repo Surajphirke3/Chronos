@@ -33,6 +33,7 @@ const WorkflowExecutionSchema = new Schema(
 WorkflowExecutionSchema.index({ workflowId: 1, status: 1 })
 WorkflowExecutionSchema.index({ leadId: 1 })
 WorkflowExecutionSchema.index({ ownerId: 1, status: 1 })
+WorkflowExecutionSchema.index({ status: 1, nextExecutionAt: 1 })
 
 export const WorkflowExecution =
   (models.WorkflowExecution || model('WorkflowExecution', WorkflowExecutionSchema)) as any

@@ -21,6 +21,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
     }
 
+    const MAX_IMPORT_BYTES = 5 * 1024 * 1024 // 5 MB
+    const MAX_IMPORT_ROWS = 5000
+    if (typeof file.size === 'number' && file.size > MAX_IMPORT_BYTES) {
+      return NextResponse.json(
+        { error: 'File too large. Maximum import size is 5 MB.' },
+        { status: 400 }
+      )
+    }
+
     const text = await file.text()
     const fileName = file.name.toLowerCase()
 
@@ -64,6 +73,13 @@ export async function POST(req: Request) {
     } else {
       return NextResponse.json(
         { error: 'Unsupported file format. Please upload .csv or .xlsx' },
+        { status: 400 }
+      )
+    }
+
+    if (rows.length > MAX_IMPORT_ROWS) {
+      return NextResponse.json(
+        { error: `Too many rows. Maximum import is ${MAX_IMPORT_ROWS} leads per file.` },
         { status: 400 }
       )
     }

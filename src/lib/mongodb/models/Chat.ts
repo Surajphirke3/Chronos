@@ -28,4 +28,6 @@ const chatSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+chatSchema.index({ participants: 1, lastMessageAt: -1 })
+
 export const Chat = (mongoose.models.Chat || mongoose.model('Chat', chatSchema)) as any

@@ -3,9 +3,10 @@ import { Workflow } from '@/lib/mongodb/models/Workflow'
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
+import { pickAllowedFields, WORKFLOW_PATCH_FIELDS } from '@/lib/auth/access'
 
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -41,12 +42,13 @@ export async function PATCH(
 
     const { id } = await params
     const body = await req.json()
+    const updates = pickAllowedFields(body, WORKFLOW_PATCH_FIELDS)
 
     await connectDB()
 
     const workflow = await Workflow.findOneAndUpdate(
       { _id: id, ownerId: session.user.id },
-      { $set: body },
+      { $set: updates },
       { new: true }
     ).lean()
 
@@ -62,7 +64,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {

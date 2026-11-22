@@ -3,12 +3,25 @@ import { Task } from '@/lib/mongodb/models/Task'
 import { ActivityLog } from '@/lib/mongodb/models/ActivityLog'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
+import {
+  findAccessibleProject,
+  pickAllowedFields,
+  TASK_PATCH_FIELDS,
+} from '@/lib/auth/access'
 import { NextResponse } from 'next/server'
+
+async function assertTaskAccess(task: { projectId: unknown }, actor: { id: string; role?: string }) {
+  const projectId =
+    typeof task.projectId === 'object' && task.projectId !== null && '_id' in (task.projectId as object)
+      ? String((task.projectId as { _id: unknown })._id)
+      : String(task.projectId)
+  return findAccessibleProject(projectId, actor)
+}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     await connectDB()
     const { id } = await params
@@ -18,6 +31,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .populate('projectId', 'name color')
 
     if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+
+    const actor = { id: session.user.id, role: session.user.role }
+    if (!(await assertTaskAccess(task, actor))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     return NextResponse.json(task)
   } catch (error) {
@@ -29,18 +47,31 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     await connectDB()
     const { id } = await params
     const body = await req.json()
+    const actor = { id: session.user.id, role: session.user.role }
 
     const oldTask = await Task.findById(id)
     if (!oldTask) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
 
-    const task = await Task.findByIdAndUpdate(id, body, { new: true })
+    if (!(await assertTaskAccess(oldTask, actor))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
-    // Log status changes specifically
+    const updates = pickAllowedFields(body, TASK_PATCH_FIELDS)
+
+    if (updates.projectId && typeof updates.projectId === 'string') {
+      const target = await findAccessibleProject(updates.projectId, actor)
+      if (!target) {
+        return NextResponse.json({ error: 'Cannot move task to an inaccessible project' }, { status: 403 })
+      }
+    }
+
+    const task = await Task.findByIdAndUpdate(id, updates, { new: true })
+
     if (body.status && body.status !== oldTask.status) {
       await ActivityLog.create({
         actorId: session.user.id,
@@ -70,13 +101,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     await connectDB()
     const { id } = await params
+    const actor = { id: session.user.id, role: session.user.role }
 
     const task = await Task.findById(id)
     if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+
+    if (!(await assertTaskAccess(task, actor))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     await Task.findByIdAndDelete(id)
 

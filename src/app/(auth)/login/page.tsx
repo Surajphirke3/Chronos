@@ -145,7 +145,7 @@ export default function LoginPage() {
               <label className="label" htmlFor="password" style={{ color: 'var(--l-text-secondary)' }}>Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--l-text-secondary)' }} />
-                <input id="password" className="input" type="password" placeholder="••••••••" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} style={{ paddingLeft: '42px', padding: '12px 14px 12px 42px', fontSize: '15px', background: 'var(--l-bg-card)', color: 'var(--l-text)', border: '1px solid var(--l-border)' }} required minLength={6} />
+                <input id="password" className="input" type="password" placeholder="••••••••" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} style={{ paddingLeft: '42px', padding: '12px 14px 12px 42px', fontSize: '15px', background: 'var(--l-bg-card)', color: 'var(--l-text)', border: '1px solid var(--l-border)' }} required minLength={isLogin ? 1 : 8} />
               </div>
             </div>
           </div>
@@ -177,13 +177,11 @@ export default function LoginPage() {
               setError('')
               try {
                 const result = await signInWithPopup(auth, googleProvider)
-                const firebaseUser = result.user
+                const idToken = await result.user.getIdToken(true)
 
-                // Pass Firebase user data to NextAuth's firebase-google provider
+                // Server verifies the Firebase ID token before issuing a session
                 const res = await signIn('firebase-google', {
-                  email: firebaseUser.email || '',
-                  name: firebaseUser.displayName || '',
-                  avatar: firebaseUser.photoURL || '',
+                  idToken,
                   redirect: false,
                 })
 

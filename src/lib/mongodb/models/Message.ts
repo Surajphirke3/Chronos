@@ -27,4 +27,6 @@ const messageSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+messageSchema.index({ chatId: 1, createdAt: 1 })
+
 export const Message = (mongoose.models.Message || mongoose.model('Message', messageSchema)) as any
