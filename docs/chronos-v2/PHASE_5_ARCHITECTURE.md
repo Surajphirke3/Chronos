@@ -2,8 +2,24 @@
 
 **Branch:** `feat/chronos-v2-phase-5`  
 **Date:** 2026-11-23  
-**Status:** Checkpoint 0 — architecture proposal pending review (**no implementation until approved**)  
-**Based on:** live tree at branch creation (includes Phase 3 + Phase 4 Checkpoint 1 billing models only)
+**Status:** Architecture **approved**. Checkpoint 1 (permission catalog) implemented. CP2+ pending review.  
+**Based on:** live tree including Phase 3 + Phase 4 Checkpoint 1 billing models only
+
+### Approved review answers (locked)
+
+1. Custom roles are **additive** to system role maps in v1.  
+2. `billing.manage` remains **organization-owner-only**; custom roles cannot grant it.  
+3. Security-critical ops fail closed if durable audit write fails (CP3+).  
+4. MFA remains **unsupported** — no fake toggle.  
+5. Existing system role semantics must remain compatible.
+
+### Checkpoint progress
+
+| CP | Status |
+|---|---|
+| 0 Architecture | Done |
+| 1 Permission catalog + evaluation | Done — see `PHASE_5_RBAC.md` |
+| 2+ Custom roles, audit, keys, … | Not started |
 
 ---
 

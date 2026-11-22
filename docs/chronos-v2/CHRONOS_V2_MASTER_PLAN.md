@@ -149,9 +149,9 @@ Phase 0 (Foundation) ──► Phase 1 (Security & Reliability)
 
 ### Phase 5 — Enterprise governance & security
 
-**Status: Checkpoint 0 architecture on `feat/chronos-v2-phase-5` — pending review before CP1.**
+**Status: CP1 complete on `feat/chronos-v2-phase-5` (catalog + evaluation; routes unchanged). CP2+ pending.**
 
-1. [ ] Permission catalog + evaluation (compat with existing roles)  
+1. [x] Permission catalog + evaluation (compat with existing roles) — `PHASE_5_RBAC.md`  
 2. [ ] Organization custom roles  
 3. [ ] Immutable `AuditEvent` + dashboard  
 4. [ ] Organization API keys (hashed secrets, scopes)  
