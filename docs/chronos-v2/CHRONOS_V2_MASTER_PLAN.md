@@ -1,6 +1,6 @@
 # Chronos V2 — Master Plan
 
-**Phase 0 complete · Phase 1 implemented · Phase 2 implemented · Phase 2.5 verification**  
+**Phase 0–2.5 complete (staging ops remaining) · Phase 3 automation implemented with limitations**  
 **Date:** 2026-11-23
 
 ---
@@ -120,9 +120,16 @@ Phase 0 (Foundation) ──► Phase 1 (Security & Reliability)
 
 ### Phase 3 — Async automation
 
-1. Job queue for workflow execution  
-2. Hosted cron / worker separation for long sequences  
-3. Webhooks (if product still requires n8n-class integrations)  
+**Status: implemented on `feat/chronos-v2-phase-3` with documented limitations (decision B).**
+
+1. [x] Durable Job queue (Mongo) + atomic claim/lease/heartbeat  
+2. [x] Retry / dead-letter + handler registry  
+3. [x] Workflow execute → async jobs + definition snapshot  
+4. [x] Scheduler (once/interval) + cron ticks  
+5. [x] Tenant-aware AI background job types  
+6. [x] Job APIs + automation dashboard  
+7. [ ] Staging cron failure-recovery drill  
+8. [ ] Webhooks (deferred)  
 
 ### Phase 4 — Product expansion
 
