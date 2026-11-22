@@ -56,7 +56,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const ownerId = existing.ownerId?.toString?.() || String(existing.ownerId)
     const isWsAdmin = ctx.workspaceRole && workspaceRoleAtLeast(ctx.workspaceRole, 'admin')
-    if (ownerId !== ctx.userId && !isWsAdmin && ctx.legacyRole !== 'admin') {
+    // Legacy User.role=admin must not mutate across tenants; use workspace role only
+    if (ownerId !== ctx.userId && !isWsAdmin) {
       return NextResponse.json({ error: 'Only the project owner or an admin can update this project' }, { status: 403 })
     }
 
