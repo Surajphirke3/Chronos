@@ -2,6 +2,14 @@ import mongoose from 'mongoose'
 
 const chatSchema = new mongoose.Schema(
   {
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+    },
+    workspaceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Workspace',
+    },
     isGroup: {
       type: Boolean,
       default: false,
@@ -29,5 +37,6 @@ const chatSchema = new mongoose.Schema(
 )
 
 chatSchema.index({ participants: 1, lastMessageAt: -1 })
+chatSchema.index({ workspaceId: 1, lastMessageAt: -1 })
 
 export const Chat = (mongoose.models.Chat || mongoose.model('Chat', chatSchema)) as any

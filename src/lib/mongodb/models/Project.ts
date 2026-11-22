@@ -6,6 +6,8 @@ const ProjectSchema = new Schema(
     description: { type: String },
     status: { type: String, enum: ['active', 'paused', 'done'], default: 'active' },
     color: { type: String, default: '#6366f1' },
+    organizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
+    workspaceId: { type: Schema.Types.ObjectId, ref: 'Workspace' },
     ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     members: [{ type: Schema.Types.ObjectId, ref: 'User' }],
     dueDate: { type: Date },
@@ -17,5 +19,6 @@ ProjectSchema.index({ status: 1 })
 ProjectSchema.index({ ownerId: 1 })
 ProjectSchema.index({ members: 1 })
 ProjectSchema.index({ ownerId: 1, updatedAt: -1 })
+ProjectSchema.index({ workspaceId: 1, updatedAt: -1 })
 
 export const Project = (models.Project || model('Project', ProjectSchema)) as any

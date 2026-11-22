@@ -2,6 +2,8 @@ import mongoose, { Schema, model, models } from 'mongoose'
 
 const ActivityLogSchema = new Schema(
   {
+    organizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
+    workspaceId: { type: Schema.Types.ObjectId, ref: 'Workspace' },
     actorId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     action: { type: String, required: true },
     entityType: { type: String, required: true },
@@ -15,5 +17,6 @@ const ActivityLogSchema = new Schema(
 ActivityLogSchema.index({ createdAt: -1 })
 ActivityLogSchema.index({ actorId: 1, createdAt: -1 })
 ActivityLogSchema.index({ entityType: 1, entityId: 1 })
+ActivityLogSchema.index({ workspaceId: 1, createdAt: -1 })
 
 export const ActivityLog = (models.ActivityLog || model('ActivityLog', ActivityLogSchema)) as any

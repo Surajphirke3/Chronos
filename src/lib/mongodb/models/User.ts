@@ -7,8 +7,12 @@ const UserSchema = new Schema(
     password: { type: String },
     avatarUrl: { type: String },
     role: { type: String, enum: ['admin', 'member'], default: 'member' },
+    /** Explicit platform ops role — never granted via org invitation */
+    platformRole: { type: String, enum: ['none', 'platform_admin'], default: 'none' },
     title: { type: String },
     isActive: { type: Boolean, default: true },
+    activeOrganizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
+    activeWorkspaceId: { type: Schema.Types.ObjectId, ref: 'Workspace' },
   },
   { timestamps: true }
 )

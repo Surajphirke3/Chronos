@@ -14,6 +14,8 @@ const LeadSchema = new Schema(
       enum: ['new', 'contacted', 'in_sequence', 'replied', 'converted', 'opted_out', 'bounced'],
       default: 'new',
     },
+    organizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
+    workspaceId: { type: Schema.Types.ObjectId, ref: 'Workspace' },
     ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true }
@@ -21,5 +23,6 @@ const LeadSchema = new Schema(
 
 LeadSchema.index({ ownerId: 1, status: 1 })
 LeadSchema.index({ email: 1, ownerId: 1 })
+LeadSchema.index({ workspaceId: 1, status: 1 })
 
 export const Lead = (models.Lead || model('Lead', LeadSchema)) as any

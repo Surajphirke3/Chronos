@@ -16,6 +16,8 @@ const WorkflowExecutionSchema = new Schema(
   {
     workflowId: { type: Schema.Types.ObjectId, ref: 'Workflow', required: true },
     leadId: { type: Schema.Types.ObjectId, ref: 'Lead' },
+    organizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
+    workspaceId: { type: Schema.Types.ObjectId, ref: 'Workspace' },
     ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     currentNodeId: { type: String },
     status: {
