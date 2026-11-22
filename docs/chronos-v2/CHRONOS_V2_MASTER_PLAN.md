@@ -1,6 +1,6 @@
 # Chronos V2 — Master Plan
 
-**Phase 0–2.5 complete (staging ops remaining) · Phase 3 automation implemented with limitations**  
+**Phase 0–2.5 complete (staging ops remaining) · Phase 3 automation implemented with limitations · Phase 4 billing models started · Phase 5 governance architecture proposed**  
 **Date:** 2026-11-23
 
 ---
@@ -47,7 +47,8 @@
 | API style | Continue Route Handlers | No parallel Server Actions rewrite |
 | Secrets | Redact now; encrypt Phase 1 | Safe incremental hardening |
 
-**Uncertainty:** Org vs Workspace as billing unit — prefer Organization (see MULTI_TENANCY_DESIGN.md).
+**Billing unit:** Organization (locked; see Phase 4 architecture).  
+**Governance:** Organization-scoped custom roles + immutable audit + API keys (Phase 5; architecture pending review).
 
 ---
 
@@ -57,7 +58,9 @@
 Phase 0 (Foundation) ──► Phase 1 (Security & Reliability)
                          ├─► Phase 2 (Multi-tenancy schema + ACL)
                          ├─► Phase 3 (Async workflows / jobs)
-                         └─► Phase 4 (Product surface: invites, attachments, polish)
+                         ├─► Phase 4 (Billing / subscriptions / usage — in progress)
+                         ├─► Phase 5 (Enterprise governance & security — architecture)
+                         └─► Later product expansion (attachments, notifications, polish)
 ```
 
 ---
@@ -131,14 +134,40 @@ Phase 0 (Foundation) ──► Phase 1 (Security & Reliability)
 7. [ ] Staging cron failure-recovery drill  
 8. [ ] Webhooks (deferred)  
 
-### Phase 4 — Product expansion
+### Phase 4 — Billing, subscriptions & usage metering
+
+**Status: in progress on `feat/chronos-v2-phase-4` (Checkpoint 1 models committed; runtime/API/UI incomplete).**
+
+1. [x] Architecture + approved MockRazorpay-first decisions  
+2. [x] Plan / Subscription / Payment / Invoice / event models + state machine + seeds  
+3. [ ] Free-plan bootstrap + lifecycle service  
+4. [ ] MockRazorpay provider + simulated checkout  
+5. [ ] Idempotent payment event processing  
+6. [ ] UsageEvent / UsageAggregate + entitlement helpers (flag off)  
+7. [ ] Billing APIs + `/settings/billing` + platform admin  
+8. [ ] Staging mock payment drill — production billing remains disabled  
+
+### Phase 5 — Enterprise governance & security
+
+**Status: Checkpoint 0 architecture on `feat/chronos-v2-phase-5` — pending review before CP1.**
+
+1. [ ] Permission catalog + evaluation (compat with existing roles)  
+2. [ ] Organization custom roles  
+3. [ ] Immutable `AuditEvent` + dashboard  
+4. [ ] Organization API keys (hashed secrets, scopes)  
+5. [ ] Organization security policies (no fake MFA)  
+6. [ ] Data export / retention via Phase 3 jobs  
+7. [ ] Platform governance controls (`platformRole` only)  
+8. [ ] Hardening, migration dry-run, docs, staging flags off by default  
+
+See `docs/chronos-v2/PHASE_5_ARCHITECTURE.md`.
+
+### Later — Product expansion (deferred)
 
 1. Attachments with ACL  
 2. Password reset / email verification  
 3. Announcements + real notifications  
-4. Fine-grained permissions / teams  
-5. Billing at Organization boundary  
-
+4. Team subgroup UX (model exists; unused)  
 
 ---
 
