@@ -4,9 +4,10 @@ import { Lead } from '@/lib/mongodb/models/Lead'
 import { WorkflowExecution } from '@/lib/mongodb/models/WorkflowExecution'
 import { executeStep } from '@/lib/engine/WorkflowEngine'
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/security/rateLimit'
+import { getActiveTenantContext, workspaceScopedFilter } from '@/lib/tenancy/context'
+import { isMultiTenantEnforced } from '@/lib/tenancy/flags'
+import { mergeMongoFilters, tenantErrorResponse } from '@/lib/tenancy/http'
 
 /**
  * Execute a workflow against REAL leads.
@@ -24,13 +25,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const ctx = await getActiveTenantContext({ requireWorkspace: isMultiTenantEnforced() })
 
     const rate = await checkRateLimit(
-      `wf-exec:${session.user.id}`,
+      `wf-exec:${ctx.userId}`,
       RATE_LIMITS.workflowExecute.limit,
       RATE_LIMITS.workflowExecute.windowMs
     )
@@ -41,9 +39,14 @@ export async function POST(
     const { id } = await params
     await connectDB()
 
-    const workflow = await Workflow.findOne({ _id: id, ownerId: session.user.id })
+    const workflow = await Workflow.findOne(
+      mergeMongoFilters(workspaceScopedFilter(ctx), {
+        _id: id,
+        ...(ctx.workspaceId ? {} : { ownerId: ctx.userId }),
+      })
+    )
     if (!workflow) {
-      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
     if (!workflow.nodes || workflow.nodes.length === 0) {
@@ -56,18 +59,16 @@ export async function POST(
     // ── Find leads to enroll ──
     let leads: any[]
 
+    const leadScope = mergeMongoFilters(workspaceScopedFilter(ctx), {
+      ...(ctx.workspaceId ? {} : { ownerId: ctx.userId }),
+    })
+
     if (leadIds && Array.isArray(leadIds) && leadIds.length > 0) {
-      // Specific leads selected by user
-      leads = await Lead.find({
-        _id: { $in: leadIds },
-        ownerId: session.user.id,
-      })
+      leads = await Lead.find(mergeMongoFilters(leadScope, { _id: { $in: leadIds } }))
     } else {
-      // All leads with the given status (default: 'new')
-      leads = await Lead.find({
-        ownerId: session.user.id,
-        status: filterStatus || 'new',
-      }).limit(maxLeads || 50)
+      leads = await Lead.find(
+        mergeMongoFilters(leadScope, { status: filterStatus || 'new' })
+      ).limit(maxLeads || 50)
     }
 
     if (leads.length === 0) {
@@ -81,7 +82,9 @@ export async function POST(
       leads.map((lead: any) => ({
         workflowId: workflow._id,
         leadId: lead._id,
-        ownerId: session.user.id,
+        ownerId: ctx.userId,
+        organizationId: ctx.organizationId || undefined,
+        workspaceId: ctx.workspaceId || undefined,
         status: 'pending',
         currentNodeId: null,
       }))
@@ -140,7 +143,6 @@ export async function POST(
       engine: 'local',
     })
   } catch (error: any) {
-    console.error('Workflow execution error:', error)
-    return NextResponse.json({ error: error.message || 'Failed to execute workflow' }, { status: 500 })
+    return tenantErrorResponse(error, error?.message || 'Failed to execute workflow')
   }
 }

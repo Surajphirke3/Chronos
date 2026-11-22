@@ -1,42 +1,89 @@
 import { connectDB } from '@/lib/mongodb/client'
 import { User } from '@/lib/mongodb/models/User'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
+import { WorkspaceMembership } from '@/lib/mongodb/models/WorkspaceMembership'
+import { Membership } from '@/lib/mongodb/models/Membership'
+import { getActiveTenantContext } from '@/lib/tenancy/context'
+import { isMultiTenantEnforced } from '@/lib/tenancy/flags'
+import { tenantErrorResponse } from '@/lib/tenancy/http'
+import { orgRoleAtLeast } from '@/lib/tenancy/roles'
 import { NextResponse } from 'next/server'
+import { AppError } from '@/lib/api/errors'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
+    const ctx = await getActiveTenantContext({ requireWorkspace: isMultiTenantEnforced() })
     await connectDB()
-    const members = await User.find({ isActive: true })
-      .select('-password')
-      .sort({ role: 1, name: 1 })
 
-    return NextResponse.json(members)
+    // Prefer workspace directory; fall back to org members; never list global users
+    if (ctx.workspaceId) {
+      const memberships = await WorkspaceMembership.find({
+        workspaceId: ctx.workspaceId,
+        status: 'active',
+      }).lean()
+      const userIds = memberships.map((m: { userId: unknown }) => m.userId)
+      const users = await User.find({ _id: { $in: userIds }, isActive: true })
+        .select('-password')
+        .sort({ name: 1 })
+        .lean()
+
+      const roleByUser = new Map(
+        memberships.map((m: { userId: { toString: () => string }; role: string }) => [
+          String(m.userId),
+          m.role,
+        ])
+      )
+
+      return NextResponse.json(
+        users.map((u: { _id: { toString: () => string } }) => ({
+          ...u,
+          workspaceRole: roleByUser.get(String(u._id)) || 'member',
+        }))
+      )
+    }
+
+    if (ctx.organizationId) {
+      const memberships = await Membership.find({
+        organizationId: ctx.organizationId,
+        status: 'active',
+      }).lean()
+      const userIds = memberships.map((m: { userId: unknown }) => m.userId)
+      const users = await User.find({ _id: { $in: userIds }, isActive: true })
+        .select('-password')
+        .sort({ name: 1 })
+      return NextResponse.json(users)
+    }
+
+    // Legacy dual-read: only self when no tenant context
+    const self = await User.findById(ctx.userId).select('-password')
+    return NextResponse.json(self ? [self] : [])
   } catch (error) {
-    console.error('GET /api/team error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return tenantErrorResponse(error, 'Internal server error')
   }
 }
 
 export async function PATCH(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    // Only admins can update roles
-    if (session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    const ctx = await getActiveTenantContext({ requireWorkspace: false })
+    if (!ctx.organizationId || !ctx.orgRole || !orgRoleAtLeast(ctx.orgRole, 'admin')) {
+      throw new AppError('Admin access required', 403)
     }
 
     await connectDB()
-    const { userId, role, title } = await req.json()
+    const { userId, title } = await req.json()
+
+    // Do not allow changing global User.role / platformRole via team API
+    const membership = await Membership.findOne({
+      organizationId: ctx.organizationId,
+      userId,
+      status: 'active',
+    })
+    if (!membership) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
 
     const user = await User.findByIdAndUpdate(
       userId,
-      { ...(role && { role }), ...(title && { title }) },
+      { ...(title && { title }) },
       { new: true }
     ).select('-password')
 
@@ -44,7 +91,6 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json(user)
   } catch (error) {
-    console.error('PATCH /api/team error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return tenantErrorResponse(error, 'Internal server error')
   }
 }

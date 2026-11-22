@@ -1,22 +1,22 @@
 import { connectDB } from '@/lib/mongodb/client'
 import { Workflow } from '@/lib/mongodb/models/Workflow'
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
 import { redactWorkflowConfigSecrets } from '@/lib/security/secrets'
+import { getActiveTenantContext, workspaceScopedFilter } from '@/lib/tenancy/context'
+import { isMultiTenantEnforced } from '@/lib/tenancy/flags'
+import { mergeMongoFilters, tenantErrorResponse } from '@/lib/tenancy/http'
+import { workspaceRoleAtLeast } from '@/lib/tenancy/roles'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
+    const ctx = await getActiveTenantContext({ requireWorkspace: isMultiTenantEnforced() })
     await connectDB()
 
-    const workflows = await Workflow.find({ ownerId: session.user.id })
-      .sort({ updatedAt: -1 })
-      .lean()
+    const filter = mergeMongoFilters(workspaceScopedFilter(ctx), {
+      ...(ctx.workspaceId ? {} : { ownerId: ctx.userId }),
+    })
+
+    const workflows = await Workflow.find(filter).sort({ updatedAt: -1 }).lean()
 
     const sanitized = workflows.map((workflow: Record<string, unknown>) => ({
       ...workflow,
@@ -27,16 +27,15 @@ export async function GET() {
 
     return NextResponse.json({ workflows: sanitized })
   } catch (error) {
-    console.error('Error fetching workflows')
-    return NextResponse.json({ error: 'Failed to fetch workflows' }, { status: 500 })
+    return tenantErrorResponse(error, 'Failed to fetch workflows')
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const ctx = await getActiveTenantContext({ requireWorkspace: isMultiTenantEnforced() })
+    if (ctx.workspaceRole && !workspaceRoleAtLeast(ctx.workspaceRole, 'member')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const body = await req.json()
@@ -51,7 +50,9 @@ export async function POST(req: Request) {
     const workflow = await Workflow.create({
       name,
       description: description || '',
-      ownerId: session.user.id,
+      ownerId: ctx.userId,
+      organizationId: ctx.organizationId || undefined,
+      workspaceId: ctx.workspaceId || undefined,
       nodes: nodes || [],
       edges: edges || [],
       status: 'draft',
@@ -59,7 +60,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ workflow }, { status: 201 })
   } catch (error) {
-    console.error('Error creating workflow:', error)
-    return NextResponse.json({ error: 'Failed to create workflow' }, { status: 500 })
+    return tenantErrorResponse(error, 'Failed to create workflow')
   }
 }

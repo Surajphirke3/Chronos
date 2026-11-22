@@ -1,18 +1,16 @@
 import { connectDB } from '@/lib/mongodb/client'
 import { Lead } from '@/lib/mongodb/models/Lead'
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
+import { getActiveTenantContext, workspaceScopedFilter } from '@/lib/tenancy/context'
+import { isMultiTenantEnforced } from '@/lib/tenancy/flags'
+import { mergeMongoFilters, tenantErrorResponse } from '@/lib/tenancy/http'
 import { objectIdSchema, paginationSchema, parseWithSchema } from '@/lib/api/validation'
 import { z } from 'zod'
+import { workspaceRoleAtLeast } from '@/lib/tenancy/roles'
 
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
+    const ctx = await getActiveTenantContext({ requireWorkspace: isMultiTenantEnforced() })
     const { searchParams } = new URL(req.url)
     const parsed = parseWithSchema(paginationSchema, {
       limit: searchParams.get('limit') || 50,
@@ -22,7 +20,14 @@ export async function GET(req: Request) {
 
     await connectDB()
 
-    const filter = { ownerId: session.user.id }
+    // Workspace members see workspace leads; dual-read falls back to owner-scoped legacy
+    const scope = workspaceScopedFilter(ctx)
+    const visibility =
+      ctx.workspaceId && ctx.workspaceRole && workspaceRoleAtLeast(ctx.workspaceRole, 'member')
+        ? {}
+        : { ownerId: ctx.userId }
+
+    const filter = mergeMongoFilters(scope, visibility)
     const page = parsed.data.page || 1
     const skip = (page - 1) * parsed.data.limit
 
@@ -46,18 +51,13 @@ export async function GET(req: Request) {
       },
     })
   } catch (error) {
-    console.error('Error fetching leads')
-    return NextResponse.json({ error: 'Failed to fetch leads' }, { status: 500 })
+    return tenantErrorResponse(error, 'Failed to fetch leads')
   }
 }
 
 export async function DELETE(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
+    const ctx = await getActiveTenantContext({ requireWorkspace: isMultiTenantEnforced() })
     const { searchParams } = new URL(req.url)
     const idParsed = parseWithSchema(z.object({ id: objectIdSchema }), {
       id: searchParams.get('id'),
@@ -65,11 +65,16 @@ export async function DELETE(req: Request) {
     if (idParsed.ok === false) return idParsed.response
 
     await connectDB()
-    await Lead.deleteOne({ _id: idParsed.data.id, ownerId: session.user.id })
+    const filter = mergeMongoFilters(workspaceScopedFilter(ctx), {
+      _id: idParsed.data.id,
+      ...(ctx.workspaceRole && workspaceRoleAtLeast(ctx.workspaceRole, 'admin')
+        ? {}
+        : { ownerId: ctx.userId }),
+    })
+    await Lead.deleteOne(filter)
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting lead')
-    return NextResponse.json({ error: 'Failed to delete lead' }, { status: 500 })
+    return tenantErrorResponse(error, 'Failed to delete lead')
   }
 }

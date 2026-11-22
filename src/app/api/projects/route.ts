@@ -1,21 +1,28 @@
 import { connectDB } from '@/lib/mongodb/client'
 import { Project } from '@/lib/mongodb/models/Project'
 import { ActivityLog } from '@/lib/mongodb/models/ActivityLog'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
 import { projectVisibilityFilter } from '@/lib/auth/access'
+import { getActiveTenantContext } from '@/lib/tenancy/context'
+import { isMultiTenantEnforced } from '@/lib/tenancy/flags'
+import { tenantErrorResponse } from '@/lib/tenancy/http'
 import { NextResponse } from 'next/server'
+import { workspaceRoleAtLeast } from '@/lib/tenancy/roles'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const ctx = await getActiveTenantContext({ requireWorkspace: isMultiTenantEnforced() })
+    if (isMultiTenantEnforced() && (!ctx.workspaceId || !ctx.workspaceRole)) {
+      return NextResponse.json({ error: 'Active workspace required' }, { status: 403 })
+    }
 
     await connectDB()
-    const filter = projectVisibilityFilter({
-      id: session.user.id,
-      role: session.user.role,
-    })
+    const filter = projectVisibilityFilter(
+      { id: ctx.userId, role: ctx.legacyRole },
+      {
+        workspaceId: ctx.workspaceId,
+        workspaceRole: ctx.workspaceRole,
+      }
+    )
 
     const projects = await Project.find(filter)
       .populate('ownerId', 'name avatarUrl')
@@ -24,15 +31,16 @@ export async function GET() {
 
     return NextResponse.json(projects)
   } catch (error) {
-    console.error('GET /api/projects error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return tenantErrorResponse(error, 'Internal server error')
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const ctx = await getActiveTenantContext({ requireWorkspace: isMultiTenantEnforced() })
+    if (ctx.workspaceRole && !workspaceRoleAtLeast(ctx.workspaceRole, 'member')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     await connectDB()
     const body = await req.json()
@@ -52,12 +60,16 @@ export async function POST(req: Request) {
       status: body.status === 'paused' || body.status === 'done' ? body.status : 'active',
       color: typeof body.color === 'string' ? body.color : undefined,
       dueDate: body.dueDate || undefined,
-      ownerId: session.user.id,
-      members: Array.from(new Set([session.user.id, ...memberIds])),
+      organizationId: ctx.organizationId || undefined,
+      workspaceId: ctx.workspaceId || undefined,
+      ownerId: ctx.userId,
+      members: Array.from(new Set([ctx.userId, ...memberIds])),
     })
 
     await ActivityLog.create({
-      actorId: session.user.id,
+      actorId: ctx.userId,
+      organizationId: ctx.organizationId || undefined,
+      workspaceId: ctx.workspaceId || undefined,
       action: 'created_project',
       entityType: 'project',
       entityId: project._id,
@@ -66,7 +78,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json(project, { status: 201 })
   } catch (error) {
-    console.error('POST /api/projects error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return tenantErrorResponse(error, 'Internal server error')
   }
 }

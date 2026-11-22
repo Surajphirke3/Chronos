@@ -1,17 +1,20 @@
 import { connectDB } from '@/lib/mongodb/client'
 import { ActivityLog } from '@/lib/mongodb/models/ActivityLog'
 import { Project } from '@/lib/mongodb/models/Project'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
-import { NextResponse } from 'next/server'
 import { projectVisibilityFilter } from '@/lib/auth/access'
+import {
+  accessOptionsFromTenant,
+  getActiveTenantContext,
+  workspaceScopedFilter,
+} from '@/lib/tenancy/context'
+import { isMultiTenantEnforced } from '@/lib/tenancy/flags'
+import { mergeMongoFilters, tenantErrorResponse } from '@/lib/tenancy/http'
+import { NextResponse } from 'next/server'
 import { paginationSchema, parseWithSchema } from '@/lib/api/validation'
 
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
+    const ctx = await getActiveTenantContext({ requireWorkspace: isMultiTenantEnforced() })
     await connectDB()
     const { searchParams } = new URL(req.url)
     const parsed = parseWithSchema(paginationSchema, {
@@ -19,26 +22,26 @@ export async function GET(req: Request) {
     })
     if (parsed.ok === false) return parsed.response
 
-    const actor = { id: session.user.id, role: session.user.role }
+    const actor = { id: ctx.userId, role: ctx.legacyRole }
+    const opts = accessOptionsFromTenant(ctx)
 
-    let filter: Record<string, unknown> = {}
-    if (actor.role !== 'admin') {
-      const accessibleProjects = await Project.find(projectVisibilityFilter(actor)).select('_id')
-      const projectIds = accessibleProjects.map((p: { _id: unknown }) => p._id)
-      filter = {
-        $or: [
-          { actorId: session.user.id },
-          { entityType: 'project', entityId: { $in: projectIds } },
-        ],
-      }
+    const accessibleProjects = await Project.find(projectVisibilityFilter(actor, opts)).select('_id')
+    const projectIds = accessibleProjects.map((p: { _id: unknown }) => p._id)
+
+    const visibility = {
+      $or: [
+        { actorId: ctx.userId },
+        { entityType: 'project', entityId: { $in: projectIds } },
+      ],
     }
+
+    const filter = mergeMongoFilters(workspaceScopedFilter(ctx), visibility)
 
     const logs = await ActivityLog.find(filter)
       .populate('actorId', 'name avatarUrl')
       .sort({ createdAt: -1, _id: -1 })
       .limit(parsed.data.limit)
 
-    // Preserve array response shape for existing dashboard consumers
     if (searchParams.get('meta') === '1') {
       return NextResponse.json({
         logs,
@@ -51,7 +54,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json(logs)
   } catch (error) {
-    console.error('GET /api/activity error')
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return tenantErrorResponse(error, 'Internal server error')
   }
 }
