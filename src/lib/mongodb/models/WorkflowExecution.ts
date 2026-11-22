@@ -26,6 +26,9 @@ const WorkflowExecutionSchema = new Schema(
     stepHistory: { type: [StepHistorySchema], default: [] },
     nextExecutionAt: { type: Date },
     errorMessage: { type: String },
+    leaseOwner: { type: String },
+    leaseExpiresAt: { type: Date },
+    retryCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 )
@@ -34,6 +37,7 @@ WorkflowExecutionSchema.index({ workflowId: 1, status: 1 })
 WorkflowExecutionSchema.index({ leadId: 1 })
 WorkflowExecutionSchema.index({ ownerId: 1, status: 1 })
 WorkflowExecutionSchema.index({ status: 1, nextExecutionAt: 1 })
+WorkflowExecutionSchema.index({ status: 1, leaseExpiresAt: 1 })
 
 export const WorkflowExecution =
   (models.WorkflowExecution || model('WorkflowExecution', WorkflowExecutionSchema)) as any
