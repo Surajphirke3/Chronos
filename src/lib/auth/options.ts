@@ -89,7 +89,7 @@ export const authOptions: NextAuthOptions = {
           allowPublicRegistration,
         })
 
-        if (!decision.ok) {
+        if (decision.ok === false) {
           return `/login?error=${encodeURIComponent(googleSignInErrorMessage(decision.reason))}`
         }
 

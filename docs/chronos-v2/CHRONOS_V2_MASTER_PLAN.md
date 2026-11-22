@@ -78,14 +78,18 @@ Phase 0 (Foundation) ──► Phase 1 (Security & Reliability)
 
 ### Phase 1 — Security & reliability
 
-1. Encrypt UserSettings / workflow secrets at rest  
-2. Durable rate limits; login lockout  
-3. Workflow resume worker (cron) for `paused` + `nextExecutionAt`  
-4. Zod validation layer + consistent API errors  
-5. Integration tests for authz/IDOR  
-6. Set `ALLOW_PUBLIC_REGISTRATION=false` in production  
-7. Fix chats N+1; paginate messages  
-8. Align README with reality  
+**Status: implemented on `feat/chronos-v2-phase-1` (requires staging verification).**
+
+1. [x] Native Google OAuth (Firebase Auth removed)  
+2. [x] Encrypt UserSettings / workflow secrets at rest (+ migrator)  
+3. [x] Durable MongoDB rate limits; login throttling  
+4. [x] AI usage quotas + tracking  
+5. [x] Workflow resume worker foundation + cron route (host cron still required)  
+6. [x] Zod helpers + pagination standards (partial route coverage)  
+7. [x] CI workflow + expanded unit tests  
+8. [x] Chat N+1 fix; message/leads pagination; health + error boundary  
+9. [ ] Deep integration/IDOR API tests against live Mongo (manual/staging)  
+10. [ ] Production `ALLOW_PUBLIC_REGISTRATION=false` + cron wiring (ops)  
 
 ### Phase 2 — Multi-tenancy
 
@@ -128,16 +132,18 @@ Every subsequent phase must:
 
 1. Add/extend tests for authz on touched resources  
 2. Run `typecheck`, `test`, `lint`, `build`  
-3. Document manual checks for Firebase/SMTP when env-dependent  
+3. Document manual checks for Google OAuth / SMTP / cron when env-dependent  
 
 ---
 
-## 9. Safe to proceed to Phase 1?
+## 9. Phase 1 → Phase 2 gate
 
-**Yes, with conditions:**
+**Classification: Requires staging verification.**
 
-1. Run verification commands in an environment with dependencies installed.  
-2. Manually verify Google sign-in and membership ACL against real data.  
-3. Audit existing projects' `members` arrays before production deploy.  
-4. Set `ALLOW_PUBLIC_REGISTRATION=false` for any shared/production deployment.  
-5. Treat secret encryption and workflow resume as first Phase 1 deliverables.
+Before Phase 2 (multi-tenancy):
+
+1. Verify Google Cloud OAuth against real credentials.  
+2. Run secrets migration dry-run/`--apply` on a backed-up database.  
+3. Configure `/api/cron/workflows/resume` with `CHRONOS_CRON_SECRET`.  
+4. Set `ALLOW_PUBLIC_REGISTRATION=false` in staging/production.  
+5. Confirm CI green on the feature branch.

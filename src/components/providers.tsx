@@ -18,18 +18,15 @@ export function useTheme() {
 }
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('light')
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return 'light'
     const stored = localStorage.getItem('theme') as Theme | null
-    const initial = stored || 'light'
-    applyTheme(initial)
-    setMounted(true)
-  }, [])
+    return stored === 'dark' || stored === 'light' ? stored : 'light'
+  })
 
   const applyTheme = (t: Theme) => {
     setTheme(t)
+    if (typeof window === 'undefined') return
     localStorage.setItem('theme', t)
     localStorage.setItem('landing-theme', t)
     document.documentElement.setAttribute('data-theme', t)
@@ -40,6 +37,12 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    if (theme === 'dark') document.documentElement.classList.add('dark')
+    else document.documentElement.classList.remove('dark')
+  }, [theme])
+
   const handleSetTheme = (t: Theme) => {
     applyTheme(t)
   }
@@ -47,8 +50,6 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
   const toggleTheme = () => {
     applyTheme(theme === 'dark' ? 'light' : 'dark')
   }
-
-  if (!mounted) return null
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme: handleSetTheme, toggleTheme }}>

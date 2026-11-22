@@ -67,7 +67,7 @@ describe('secret encryption', () => {
       smtpPass: 'enc:v1:x:y:z',
       aiApiKey: '',
       smtpUser: 'a@b.com',
-    })!
+    }) as Record<string, unknown>
     assert.equal(redacted.smtpPass, '')
     assert.equal(redacted.smtpPassSet, true)
     assert.equal(redacted.aiApiKeySet, false)
