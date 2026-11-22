@@ -1,6 +1,6 @@
 # Chronos V2 — Master Plan
 
-**Phase 0 complete · Phase 1 implemented · Phase 2 implemented (dual-read)**  
+**Phase 0 complete · Phase 1 implemented · Phase 2 implemented · Phase 2.5 verification**  
 **Date:** 2026-11-23
 
 ---
@@ -104,6 +104,20 @@ Phase 0 (Foundation) ──► Phase 1 (Security & Reliability)
 7. [ ] Operator `--apply` migration on staging DB clone  
 8. [ ] Set `MULTI_TENANT_ENFORCE=true` after backfill verification  
 
+### Phase 2.5 — Staging verification & cutover readiness
+
+**Status: code verification complete; decision B (fixes applied). Staging DB apply still required.**
+
+1. [x] Route-by-route tenant API audit matrix  
+2. [x] AI tenant isolation audit  
+3. [x] Dual-read cross-tenant leak fixed (`allowsLegacyUnscopedRead`)  
+4. [x] Invitation accept email atomic claim + preview rate limit  
+5. [x] AI routes require tenant context under enforce  
+6. [x] Unit/typecheck/lint/build green after fixes  
+7. [ ] Staging clone migration dry-run + apply with recorded counts  
+8. [ ] Staging cross-org IDOR + SMTP invite E2E  
+9. [ ] Explicit approval for staging `MULTI_TENANT_ENFORCE=true` (not production)  
+
 ### Phase 3 — Async automation
 
 1. Job queue for workflow execution  
@@ -157,10 +171,12 @@ Outstanding Phase 1 manual checks (still open):
 
 ## 10. Phase 2 → Phase 3 gate
 
-**Classification: Requires staging verification.**
+**Classification: Requires staging verification.**  
+**Phase 2.5 decision: B — READY AFTER LISTED FIXES (fixes committed; staging ops remaining).**
 
 1. Run `migrate:tenancy` dry-run then `--apply` on a staging clone; verify counts.  
 2. Confirm cross-org IDOR tests on projects/tasks/docs/leads/workflows/chats.  
-3. Enable `MULTI_TENANT_ENFORCE=true` only after backfill verification.  
+3. Enable `MULTI_TENANT_ENFORCE=true` only after backfill verification (staging first).  
 4. Configure SMTP for invitations and test accept/revoke/replay.  
-5. Resolve remaining Phase 1 ops checks before production cutover.
+5. Resolve remaining Phase 1 ops checks before production cutover.  
+6. Do **not** enable production enforcement from Phase 2.5.
