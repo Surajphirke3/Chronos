@@ -3,6 +3,7 @@ import { Workflow } from '@/lib/mongodb/models/Workflow'
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
+import { redactWorkflowConfigSecrets } from '@/lib/security/secrets'
 
 export async function GET() {
   try {
@@ -17,9 +18,16 @@ export async function GET() {
       .sort({ updatedAt: -1 })
       .lean()
 
-    return NextResponse.json({ workflows })
+    const sanitized = workflows.map((workflow: Record<string, unknown>) => ({
+      ...workflow,
+      config: redactWorkflowConfigSecrets(
+        (workflow.config as Record<string, unknown>) || undefined
+      ),
+    }))
+
+    return NextResponse.json({ workflows: sanitized })
   } catch (error) {
-    console.error('Error fetching workflows:', error)
+    console.error('Error fetching workflows')
     return NextResponse.json({ error: 'Failed to fetch workflows' }, { status: 500 })
   }
 }

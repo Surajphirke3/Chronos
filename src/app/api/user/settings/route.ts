@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { maskSecret, shouldUpdateSecret } from '@/lib/auth/access'
+import { encryptSecret, SecretEncryptionError } from '@/lib/security/secrets'
 
 function sanitizeSettingsForClient(settings: Record<string, unknown> | null, fallbackEmail = '', fallbackName = '') {
   const emailSecret = maskSecret(settings?.emailAppPassword as string | undefined)
@@ -42,7 +43,7 @@ export async function GET() {
       ),
     })
   } catch (error) {
-    console.error('Error fetching user settings:', error)
+    console.error('Error fetching user settings')
     return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 })
   }
 }
@@ -73,12 +74,11 @@ export async function PUT(req: Request) {
     if (aiModel !== undefined) $set.aiModel = aiModel
     if (aiBaseUrl !== undefined) $set.aiBaseUrl = aiBaseUrl
 
-    // Only overwrite secrets when a real new value is provided
     if (shouldUpdateSecret(emailAppPassword)) {
-      $set.emailAppPassword = String(emailAppPassword).trim()
+      $set.emailAppPassword = encryptSecret(String(emailAppPassword).trim())
     }
     if (shouldUpdateSecret(aiApiKey)) {
-      $set.aiApiKey = String(aiApiKey).trim()
+      $set.aiApiKey = encryptSecret(String(aiApiKey).trim())
     }
 
     const settings = await UserSettings.findOneAndUpdate(
@@ -95,7 +95,13 @@ export async function PUT(req: Request) {
       ),
     })
   } catch (error) {
-    console.error('Error saving user settings:', error)
+    if (error instanceof SecretEncryptionError) {
+      return NextResponse.json(
+        { error: 'Secret encryption is not configured on the server' },
+        { status: 503 }
+      )
+    }
+    console.error('Error saving user settings')
     return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 })
   }
 }

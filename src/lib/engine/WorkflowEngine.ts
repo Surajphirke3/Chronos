@@ -7,6 +7,7 @@ import { checkRateLimit } from './RateLimiter'
 import { computeDelay, nextExecTime } from './DelayScheduler'
 import { safetyCheck } from './SafetyGuards'
 import nodemailer from 'nodemailer'
+import { decryptSecret } from '@/lib/security/secrets'
 
 // ── AI Provider Base URLs ──
 const AI_BASE_URLS: Record<string, string> = {
@@ -120,14 +121,18 @@ async function sendEmailViaGmail(
 // ── Load user's email & AI settings from DB ──
 async function getUserConfig(ownerId: string) {
   const settings = await UserSettings.findOne({ userId: ownerId }).lean() as any
+  const emailAppPassword = settings?.emailAppPassword
+    ? decryptSecret(String(settings.emailAppPassword))
+    : ''
+  const userAiKey = settings?.aiApiKey ? decryptSecret(String(settings.aiApiKey)) : ''
   return {
     // Email
     emailAddress: settings?.emailAddress || '',
-    emailAppPassword: settings?.emailAppPassword || '',
+    emailAppPassword,
     emailFromName: settings?.emailFromName || '',
     // AI
     aiProvider: settings?.aiProvider || 'groq',
-    aiApiKey: settings?.aiApiKey || process.env.GROQ_API_KEY || '',
+    aiApiKey: userAiKey || process.env.GROQ_API_KEY || '',
     aiModel: settings?.aiModel || 'llama-3.3-70b-versatile',
     aiBaseUrl: settings?.aiBaseUrl || '',
   }
@@ -184,7 +189,12 @@ export async function executeStep(executionId: string): Promise<void> {
 
   const nodes = workflow.nodes || []
   const edges = workflow.edges || []
-  const wfConfig = workflow.config || {}
+  const rawWfConfig = workflow.config || {}
+  const wfConfig = {
+    ...rawWfConfig,
+    aiApiKey: rawWfConfig.aiApiKey ? decryptSecret(String(rawWfConfig.aiApiKey)) : '',
+    smtpPass: rawWfConfig.smtpPass ? decryptSecret(String(rawWfConfig.smtpPass)) : '',
+  }
 
   // Load user's email & AI config from Settings
   const userConfig = await getUserConfig(execution.ownerId.toString())
