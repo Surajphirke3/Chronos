@@ -1,7 +1,7 @@
 # Phase 4 — Checkpoint 1: Proposed Schemas, Indexes, State Machines, Migration
 
 **Branch:** `feat/chronos-v2-phase-4`  
-**Status:** Design for review — **models not implemented until this checkpoint is accepted**  
+**Status:** Implemented on `feat/chronos-v2-phase-4` — awaiting Checkpoint 1 review before CP2  
 **Scope:** Plan, Subscription, SubscriptionEvent, BillingCustomer, CheckoutSession, Payment, Invoice, BillingProviderEvent (webhook/event ledger). Usage models land in Checkpoint 5.
 
 Conventions match existing Mongoose models (`Schema` + `models.X || model(...)`, ObjectId refs, `timestamps`).
