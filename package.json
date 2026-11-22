@@ -11,7 +11,8 @@
     "test": "tsx --test \"src/**/*.test.ts\"",
     "seed": "tsx scripts/seed.ts",
     "migrate:secrets": "tsx scripts/migrate-secrets.ts",
-    "migrate:tenancy": "tsx scripts/migrate-tenancy.ts"
+    "migrate:tenancy": "tsx scripts/migrate-tenancy.ts",
+    "automation:worker": "tsx scripts/automation-worker.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
