@@ -19,5 +19,7 @@ const DocumentSchema = new Schema(
 DocumentSchema.index({ title: 'text' })
 DocumentSchema.index({ type: 1 })
 DocumentSchema.index({ isPinned: -1, updatedAt: -1 })
+DocumentSchema.index({ projectId: 1, updatedAt: -1 })
+DocumentSchema.index({ authorId: 1 })
 
 export const Doc = (models.Doc || model('Doc', DocumentSchema)) as any

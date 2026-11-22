@@ -13,5 +13,7 @@ const ActivityLogSchema = new Schema(
 )
 
 ActivityLogSchema.index({ createdAt: -1 })
+ActivityLogSchema.index({ actorId: 1, createdAt: -1 })
+ActivityLogSchema.index({ entityType: 1, entityId: 1 })
 
 export const ActivityLog = (models.ActivityLog || model('ActivityLog', ActivityLogSchema)) as any
