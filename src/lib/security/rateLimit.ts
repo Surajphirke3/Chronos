@@ -120,4 +120,6 @@ export const RATE_LIMITS = {
   ai: { limit: 60, windowMs: 60 * 1000 },
   workflowExecute: { limit: 10, windowMs: 60 * 1000 },
   leadImport: { limit: 10, windowMs: 60 * 60 * 1000 },
+  invitationCreate: { limit: 20, windowMs: 60 * 60 * 1000 },
+  invitationAccept: { limit: 30, windowMs: 15 * 60 * 1000 },
 } as const

@@ -23,8 +23,16 @@ describe('canAccessProject', () => {
     assert.equal(canAccessProject(project, { id: 'member-2', role: 'member' }), true)
   })
 
-  it('allows admins even when not a member', () => {
+  it('allows legacy admins even when not a member (no workspace context)', () => {
     assert.equal(canAccessProject(project, { id: 'outsider', role: 'admin' }), true)
+  })
+
+  it('denies cross-workspace access even for project members', () => {
+    const scoped = { ...project, workspaceId: 'ws-a' }
+    assert.equal(
+      canAccessProject(scoped, { id: 'owner-1', role: 'member' }, { workspaceId: 'ws-b', workspaceRole: 'member' }),
+      false
+    )
   })
 
   it('denies non-members', () => {

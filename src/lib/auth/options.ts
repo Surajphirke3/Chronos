@@ -124,7 +124,7 @@ export const authOptions: NextAuthOptions = {
         if (user.id && account?.provider !== 'google') {
           token.id = user.id
           token.role = (user as { role?: string }).role || 'member'
-          token.roleCheckedAt = Date.now()
+          token.roleCheckedAt = 0 // force DB refresh for platform/active context
         }
       }
 
@@ -135,15 +135,25 @@ export const authOptions: NextAuthOptions = {
           const dbUser = await User.findOne({
             email: String(token.email).toLowerCase().trim(),
           })
-            .select('role isActive')
+            .select('role isActive platformRole activeOrganizationId activeWorkspaceId')
             .lean()
 
           if (!dbUser || dbUser.isActive === false) {
             delete token.id
             delete token.role
+            delete token.platformRole
+            delete token.activeOrganizationId
+            delete token.activeWorkspaceId
           } else {
             token.id = dbUser._id.toString()
             token.role = dbUser.role || 'member'
+            token.platformRole = dbUser.platformRole || 'none'
+            token.activeOrganizationId = dbUser.activeOrganizationId
+              ? String(dbUser.activeOrganizationId)
+              : null
+            token.activeWorkspaceId = dbUser.activeWorkspaceId
+              ? String(dbUser.activeWorkspaceId)
+              : null
             token.roleCheckedAt = Date.now()
           }
         } catch {
@@ -158,12 +168,24 @@ export const authOptions: NextAuthOptions = {
       if (shouldRefreshRole) {
         try {
           await connectDB()
-          const dbUser = await User.findById(token.id).select('role isActive').lean()
+          const dbUser = await User.findById(token.id)
+            .select('role isActive platformRole activeOrganizationId activeWorkspaceId')
+            .lean()
           if (!dbUser || dbUser.isActive === false) {
             delete token.id
             delete token.role
+            delete token.platformRole
+            delete token.activeOrganizationId
+            delete token.activeWorkspaceId
           } else {
             token.role = dbUser.role || 'member'
+            token.platformRole = dbUser.platformRole || 'none'
+            token.activeOrganizationId = dbUser.activeOrganizationId
+              ? String(dbUser.activeOrganizationId)
+              : null
+            token.activeWorkspaceId = dbUser.activeWorkspaceId
+              ? String(dbUser.activeWorkspaceId)
+              : null
             token.roleCheckedAt = Date.now()
           }
         } catch {
@@ -178,6 +200,11 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string
         session.user.role = token.role as string
+        session.user.platformRole = (token.platformRole as string) || 'none'
+        session.user.activeOrganizationId =
+          (token.activeOrganizationId as string | null | undefined) ?? null
+        session.user.activeWorkspaceId =
+          (token.activeWorkspaceId as string | null | undefined) ?? null
       }
       return session
     },
