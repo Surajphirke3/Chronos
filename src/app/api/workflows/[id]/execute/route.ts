@@ -6,6 +6,7 @@ import { executeStep } from '@/lib/engine/WorkflowEngine'
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
+import { checkRateLimit, RATE_LIMITS } from '@/lib/security/rateLimit'
 
 /**
  * Execute a workflow against REAL leads.
@@ -26,6 +27,15 @@ export async function POST(
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const rate = await checkRateLimit(
+      `wf-exec:${session.user.id}`,
+      RATE_LIMITS.workflowExecute.limit,
+      RATE_LIMITS.workflowExecute.windowMs
+    )
+    if (!rate.allowed) {
+      return NextResponse.json({ error: 'Workflow execution rate limit exceeded' }, { status: 429 })
     }
 
     const { id } = await params

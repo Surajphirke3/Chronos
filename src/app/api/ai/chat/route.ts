@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { ALL_PROVIDERS } from '@/lib/ai/providers'
-import { checkRateLimit, getClientIp } from '@/lib/security/rateLimit'
+import { assertAiBudget, recordAiUsage } from '@/lib/ai/usage'
 
 const ALLOWED_BASE_URL_HOSTS = new Set([
   'api.groq.com',
@@ -16,10 +16,13 @@ const ALLOWED_BASE_URL_HOSTS = new Set([
 ])
 
 function isAllowedBaseUrl(baseUrl: unknown): boolean {
-  if (!baseUrl || typeof baseUrl !== 'string') return true // providers use their defaults
+  if (!baseUrl || typeof baseUrl !== 'string') return true
   try {
     const parsed = new URL(baseUrl)
-    if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'))) {
+    if (
+      parsed.protocol !== 'https:' &&
+      !(parsed.protocol === 'http:' && (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'))
+    ) {
       return false
     }
     return ALLOWED_BASE_URL_HOSTS.has(parsed.hostname)
@@ -35,9 +38,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const rate = checkRateLimit(`ai-chat:${session.user.id}:${getClientIp(req)}`, 60, 60 * 1000)
-    if (!rate.allowed) {
-      return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
+    const budget = await assertAiBudget(session.user.id)
+    if (budget.ok === false) {
+      await recordAiUsage({
+        userId: session.user.id,
+        provider: 'unknown',
+        route: '/api/ai/chat',
+        outcome: 'rejected',
+      })
+      return NextResponse.json({ error: budget.error }, { status: budget.status })
     }
 
     const { messages, providerId, config } = await req.json()
@@ -62,7 +71,6 @@ export async function POST(req: Request) {
       )
     }
 
-    // Prefer server env key for Groq; do not trust arbitrary client baseUrl for key injection targets
     const finalConfig = {
       ...config,
       baseUrl: config.baseUrl || provider.defaultBaseUrl,
@@ -71,15 +79,29 @@ export async function POST(req: Request) {
       finalConfig.apiKey = process.env.GROQ_API_KEY
     }
 
-    const reply = await provider.chat(messages, finalConfig)
-
-    return NextResponse.json({ message: reply })
+    try {
+      const reply = await provider.chat(messages, finalConfig)
+      await recordAiUsage({
+        userId: session.user.id,
+        provider: providerId,
+        model: finalConfig.model,
+        route: '/api/ai/chat',
+        outcome: 'success',
+      })
+      return NextResponse.json({ message: reply })
+    } catch (error: unknown) {
+      await recordAiUsage({
+        userId: session.user.id,
+        provider: providerId,
+        model: finalConfig.model,
+        route: '/api/ai/chat',
+        outcome: 'error',
+      })
+      throw error
+    }
   } catch (error: unknown) {
-    console.error('AI chat error:', error)
+    console.error('AI chat error')
     const message = error instanceof Error ? error.message : 'AI request failed'
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

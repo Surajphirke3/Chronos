@@ -3,6 +3,7 @@ import { User } from '@/lib/mongodb/models/User'
 import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
 import { checkRateLimit, getClientIp } from '@/lib/security/rateLimit'
+import { parseWithSchema, registerSchema } from '@/lib/api/validation'
 
 export async function POST(req: Request) {
   try {
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
     }
 
     const ip = getClientIp(req)
-    const rate = checkRateLimit(`register:${ip}`, 10, 15 * 60 * 1000)
+    const rate = await checkRateLimit(`register:${ip}`, 10, 15 * 60 * 1000)
     if (!rate.allowed) {
       return NextResponse.json(
         { error: 'Too many registration attempts. Please try again later.' },
@@ -26,21 +27,9 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { name, email, password } = body
-
-    if (!name || !email || !password) {
-      return NextResponse.json(
-        { error: 'Name, email, and password are required' },
-        { status: 400 }
-      )
-    }
-
-    if (typeof password !== 'string' || password.length < 8) {
-      return NextResponse.json(
-        { error: 'Password must be at least 8 characters' },
-        { status: 400 }
-      )
-    }
+    const parsed = parseWithSchema(registerSchema, body)
+    if (parsed.ok === false) return parsed.response
+    const { name, email, password } = parsed.data
 
     await connectDB()
 
@@ -57,7 +46,7 @@ export async function POST(req: Request) {
     const hashedPassword = await bcrypt.hash(password, 12)
 
     const user = await User.create({
-      name: String(name).trim(),
+      name: name.trim(),
       email: normalizedEmail,
       password: hashedPassword,
       role: 'member',

@@ -4,12 +4,22 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import Papa from 'papaparse'
+import { checkRateLimit, RATE_LIMITS } from '@/lib/security/rateLimit'
 
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const rate = await checkRateLimit(
+      `lead-import:${session.user.id}`,
+      RATE_LIMITS.leadImport.limit,
+      RATE_LIMITS.leadImport.windowMs
+    )
+    if (!rate.allowed) {
+      return NextResponse.json({ error: 'Lead import rate limit exceeded' }, { status: 429 })
     }
 
     await connectDB()

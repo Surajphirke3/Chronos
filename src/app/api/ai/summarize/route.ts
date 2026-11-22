@@ -2,6 +2,7 @@ import { callGroq } from '@/lib/ai/groq'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { NextResponse } from 'next/server'
+import { assertAiBudget, recordAiUsage } from '@/lib/ai/usage'
 
 const SYSTEM_PROMPT = `You are a precise summarizer for startup teams.
 Given meeting notes or raw text, return a JSON object with:
@@ -13,7 +14,12 @@ Output ONLY valid JSON. No markdown.`
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const budget = await assertAiBudget(session.user.id)
+    if (budget.ok === false) {
+      return NextResponse.json({ error: budget.error }, { status: budget.status })
+    }
 
     const { text } = await req.json()
 
@@ -23,6 +29,12 @@ export async function POST(req: Request) {
 
     const result = await callGroq(SYSTEM_PROMPT, text, true)
     const parsed = JSON.parse(result)
+    await recordAiUsage({
+      userId: session.user.id,
+      provider: 'groq',
+      route: '/api/ai/summarize',
+      outcome: 'success',
+    })
 
     return NextResponse.json(parsed)
   } catch (error) {
