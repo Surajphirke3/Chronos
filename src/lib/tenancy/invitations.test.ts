@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { generateInviteToken, hashInviteToken } from './invitations'
 
 describe('invitation tokens', () => {
@@ -15,5 +17,11 @@ describe('invitation tokens', () => {
   it('hash is deterministic', () => {
     assert.equal(hashInviteToken('abc'), hashInviteToken('abc'))
     assert.notEqual(hashInviteToken('abc'), hashInviteToken('abd'))
+  })
+
+  it('acceptInvitation claims by email atomically (source invariant)', () => {
+    const source = readFileSync(join(process.cwd(), 'src/lib/tenancy/invitations.ts'), 'utf8')
+    assert.match(source, /findOneAndUpdate\([\s\S]*email[\s\S]*status:\s*'pending'/)
+    assert.doesNotMatch(source, /\$set:\s*\{\s*status:\s*'pending'/)
   })
 })

@@ -122,4 +122,5 @@ export const RATE_LIMITS = {
   leadImport: { limit: 10, windowMs: 60 * 60 * 1000 },
   invitationCreate: { limit: 20, windowMs: 60 * 60 * 1000 },
   invitationAccept: { limit: 30, windowMs: 15 * 60 * 1000 },
+  invitationPreview: { limit: 30, windowMs: 15 * 60 * 1000 },
 } as const

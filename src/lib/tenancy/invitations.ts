@@ -79,10 +79,13 @@ export async function acceptInvitation(params: {
 }): Promise<{ organizationId: string; workspaceId: string | null }> {
   await connectDB()
   const tokenHash = hashInviteToken(params.token)
+  const email = params.userEmail.toLowerCase().trim()
 
+  // Email is part of the atomic claim — wrong-email attempts must not consume the invite
   const invitation = await Invitation.findOneAndUpdate(
     {
       tokenHash,
+      email,
       status: 'pending',
       expiresAt: { $gt: new Date() },
     },
@@ -97,23 +100,25 @@ export async function acceptInvitation(params: {
   )
 
   if (!invitation) {
+    const existing = await Invitation.findOne({ tokenHash }).select('email status expiresAt').lean()
+    if (
+      existing &&
+      existing.status === 'pending' &&
+      existing.expiresAt &&
+      new Date(existing.expiresAt) > new Date() &&
+      String(existing.email).toLowerCase() !== email
+    ) {
+      throw new AppError('Invitation email does not match the signed-in account', 403)
+    }
     throw new AppError('Invitation is invalid, expired, or already used', 400)
   }
 
-  if (invitation.email.toLowerCase() !== params.userEmail.toLowerCase().trim()) {
-    // Roll back acceptance for email mismatch
-    await Invitation.updateOne(
-      { _id: invitation._id },
-      { $set: { status: 'pending' }, $unset: { acceptedAt: 1, acceptedBy: 1 } }
-    )
-    throw new AppError('Invitation email does not match the signed-in account', 403)
-  }
-
-  const orgRole = invitation.scope === 'organization'
-    ? invitation.role === 'guest'
-      ? 'member'
-      : invitation.role
-    : 'member'
+  const orgRole =
+    invitation.scope === 'organization'
+      ? invitation.role === 'guest'
+        ? 'member'
+        : invitation.role
+      : 'member'
 
   await Membership.findOneAndUpdate(
     { organizationId: invitation.organizationId, userId: params.userId },
@@ -153,7 +158,6 @@ export async function acceptInvitation(params: {
       { upsert: true }
     )
   } else if (invitation.scope === 'organization') {
-    // Grant membership on the default workspace if present
     const defaultWs = await Workspace.findOne({
       organizationId: invitation.organizationId,
       isDefault: true,

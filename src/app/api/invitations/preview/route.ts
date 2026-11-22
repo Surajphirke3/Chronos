@@ -5,9 +5,10 @@ import { Organization } from '@/lib/mongodb/models/Organization'
 import { Workspace } from '@/lib/mongodb/models/Workspace'
 import { hashInviteToken } from '@/lib/tenancy/invitations'
 import { parseWithSchema } from '@/lib/api/validation'
-import { apiOk } from '@/lib/api/response'
+import { apiOk, apiTooMany } from '@/lib/api/response'
 import { tenantErrorResponse } from '@/lib/tenancy/http'
 import { AppError } from '@/lib/api/errors'
+import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/security/rateLimit'
 
 const schema = z.object({
   token: z.string().min(16).max(200),
@@ -15,6 +16,16 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req)
+    const rate = await checkRateLimit(
+      `invite-preview:${ip}`,
+      RATE_LIMITS.invitationPreview.limit,
+      RATE_LIMITS.invitationPreview.windowMs
+    )
+    if (!rate.allowed) {
+      return apiTooMany('Too many attempts', Math.ceil(rate.retryAfterMs / 1000))
+    }
+
     const body = await req.json()
     const parsed = parseWithSchema(schema, body)
     if (parsed.ok === false) return parsed.response
