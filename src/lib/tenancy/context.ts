@@ -7,7 +7,11 @@ import { Organization } from '@/lib/mongodb/models/Organization'
 import { Workspace } from '@/lib/mongodb/models/Workspace'
 import { Membership } from '@/lib/mongodb/models/Membership'
 import { WorkspaceMembership } from '@/lib/mongodb/models/WorkspaceMembership'
-import { isMultiTenantEnforced } from '@/lib/tenancy/flags'
+import {
+  DEFAULT_ORG_MIGRATION_KEY,
+  DEFAULT_WORKSPACE_MIGRATION_KEY,
+  isMultiTenantEnforced,
+} from '@/lib/tenancy/flags'
 import { orgRoleAtLeast, workspaceRoleAtLeast, type OrgRole, type WorkspaceRole } from '@/lib/tenancy/roles'
 import { AppError } from '@/lib/api/errors'
 
@@ -21,8 +25,27 @@ export type TenantContext = {
   workspaceId: string | null
   orgRole: OrgRole | null
   workspaceRole: WorkspaceRole | null
-  organization: { _id: string; name: string; slug: string; status: string } | null
-  workspace: { _id: string; name: string; slug: string; status: string; organizationId: string } | null
+  /**
+   * True only for the deployment default migrated tenant.
+   * Dual-read of unscoped legacy rows is allowed solely in this context.
+   */
+  allowsLegacyUnscopedRead: boolean
+  organization: {
+    _id: string
+    name: string
+    slug: string
+    status: string
+    migrationKey?: string | null
+  } | null
+  workspace: {
+    _id: string
+    name: string
+    slug: string
+    status: string
+    organizationId: string
+    isDefault?: boolean
+    migrationKey?: string | null
+  } | null
 }
 
 export async function requireAuthenticatedUser(): Promise<{
@@ -102,7 +125,7 @@ export async function getActiveTenantContext(options?: {
       _id: organizationId,
       status: 'active',
     })
-      .select('name slug status')
+      .select('name slug status migrationKey')
       .lean()
 
     if (organization) {
@@ -123,7 +146,7 @@ export async function getActiveTenantContext(options?: {
             organizationId,
             status: 'active',
           })
-            .select('name slug status organizationId')
+            .select('name slug status organizationId isDefault migrationKey')
             .lean()
           if (!workspace || !workspaceMembership) {
             workspace = null
@@ -146,6 +169,12 @@ export async function getActiveTenantContext(options?: {
     }
   }
 
+  const allowsLegacyUnscopedRead = Boolean(
+    organization?.migrationKey === DEFAULT_ORG_MIGRATION_KEY &&
+      workspace &&
+      (workspace.migrationKey === DEFAULT_WORKSPACE_MIGRATION_KEY || workspace.isDefault === true)
+  )
+
   return {
     userId: auth.userId,
     email: auth.email,
@@ -155,12 +184,14 @@ export async function getActiveTenantContext(options?: {
     workspaceId,
     orgRole,
     workspaceRole,
+    allowsLegacyUnscopedRead,
     organization: organization
       ? {
           _id: String(organization._id),
           name: organization.name,
           slug: organization.slug,
           status: organization.status,
+          migrationKey: organization.migrationKey || null,
         }
       : null,
     workspace: workspace
@@ -170,6 +201,8 @@ export async function getActiveTenantContext(options?: {
           slug: workspace.slug,
           status: workspace.status,
           organizationId: String(workspace.organizationId),
+          isDefault: Boolean(workspace.isDefault),
+          migrationKey: workspace.migrationKey || null,
         }
       : null,
   }
@@ -238,23 +271,25 @@ export async function requireWorkspaceAccess(
   }
 }
 
-/** Workspace filter for list queries — dual-read when enforcement is off. */
+/**
+ * Workspace filter for list queries.
+ * Dual-read of unscoped legacy rows is restricted to the default migrated tenant only.
+ * Other workspaces/orgs never see null-workspaceId records (prevents cross-tenant leaks).
+ */
 export function workspaceScopedFilter(
   ctx: TenantContext,
   extra: Record<string, unknown> = {}
 ): Record<string, unknown> {
   if (ctx.workspaceId) {
-    if (isMultiTenantEnforced()) {
+    if (isMultiTenantEnforced() || !ctx.allowsLegacyUnscopedRead) {
       return { ...extra, workspaceId: ctx.workspaceId }
     }
-    // Dual-read: include legacy records without workspaceId for the default workspace path
     return {
       ...extra,
       $or: [{ workspaceId: ctx.workspaceId }, { workspaceId: { $exists: false } }, { workspaceId: null }],
     }
   }
   if (isMultiTenantEnforced()) {
-    // Should have been rejected earlier
     return { ...extra, workspaceId: '__none__' }
   }
   return { ...extra }
@@ -268,6 +303,7 @@ export function accessOptionsFromTenant(ctx: TenantContext) {
   return {
     workspaceId: ctx.workspaceId,
     workspaceRole: ctx.workspaceRole,
-    dualReadLegacy: !isMultiTenantEnforced(),
+    // Never treat dual-read as "all unscoped rows for every workspace"
+    dualReadLegacy: Boolean(ctx.allowsLegacyUnscopedRead) && !isMultiTenantEnforced(),
   }
 }
