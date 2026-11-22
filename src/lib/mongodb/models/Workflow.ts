@@ -43,6 +43,8 @@ const WorkflowSchema = new Schema(
       enum: ['draft', 'active', 'paused', 'archived'],
       default: 'draft',
     },
+    /** Incremented when definition meaningfully changes; copied onto executions */
+    version: { type: Number, default: 1 },
     config: {
       maxActionsPerHour: { type: Number, default: 50 },
       maxActionsPerDay: { type: Number, default: 200 },

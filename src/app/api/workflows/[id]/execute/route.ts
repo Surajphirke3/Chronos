@@ -8,17 +8,16 @@ import { checkRateLimit, RATE_LIMITS } from '@/lib/security/rateLimit'
 import { getActiveTenantContext, workspaceScopedFilter } from '@/lib/tenancy/context'
 import { isMultiTenantEnforced } from '@/lib/tenancy/flags'
 import { mergeMongoFilters, tenantErrorResponse } from '@/lib/tenancy/http'
+import { getAutomationConfig } from '@/lib/automation/config'
+import { enqueueJob } from '@/lib/automation/queue/enqueue'
+import { newCorrelationId } from '@/lib/automation/observability'
+import { AppError } from '@/lib/api/errors'
 
 /**
- * Execute a workflow against REAL leads.
+ * Execute a workflow against leads.
  *
- * Request body:
- *   leadIds?: string[]  — specific lead IDs to enroll (from the lead picker)
- *   status?: string     — if no leadIds, enroll all leads with this status (default: 'new')
- *   limit?: number      — max leads to enroll (default: 50)
- *
- * For each selected lead, the engine runs the workflow nodes in order:
- *   Trigger → AI Message (calls your AI API) → Send Email (via SMTP) → Tag Lead → End
+ * Default (AUTOMATION_ASYNC_EXECUTE=true): create executions + enqueue durable jobs (202).
+ * Sync fallback when flag is false: prior in-request step loop (legacy).
  */
 export async function POST(
   req: Request,
@@ -26,6 +25,12 @@ export async function POST(
 ) {
   try {
     const ctx = await getActiveTenantContext({ requireWorkspace: isMultiTenantEnforced() })
+    if (!ctx.organizationId || !ctx.workspaceId) {
+      // Async path requires tenant IDs; sync legacy may continue without enforce
+      if (getAutomationConfig().asyncExecute && isMultiTenantEnforced()) {
+        throw new AppError('Active workspace required', 403)
+      }
+    }
 
     const rate = await checkRateLimit(
       `wf-exec:${ctx.userId}`,
@@ -54,11 +59,10 @@ export async function POST(
     }
 
     const body = await req.json().catch(() => ({}))
-    const { leadIds, status: filterStatus, limit: maxLeads } = body
+    const { leadIds, status: filterStatus, limit: maxLeads, sync } = body
+    const asyncMode = getAutomationConfig().asyncExecute && sync !== true
 
-    // ── Find leads to enroll ──
     let leads: any[]
-
     const leadScope = mergeMongoFilters(workspaceScopedFilter(ctx), {
       ...(ctx.workspaceId ? {} : { ownerId: ctx.userId }),
     })
@@ -72,25 +76,56 @@ export async function POST(
     }
 
     if (leads.length === 0) {
-      return NextResponse.json({
-        error: 'No leads found. Import leads from CSV/Excel first in the Leads page, then come back and execute.',
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error:
+            'No leads found. Import leads from CSV/Excel first in the Leads page, then come back and execute.',
+        },
+        { status: 400 }
+      )
     }
 
-    // ── Create execution records for each lead ──
+    const correlationId = newCorrelationId()
+    const workflowVersion = workflow.version || 1
+    const definitionSnapshot = {
+      nodes: workflow.nodes,
+      edges: workflow.edges,
+      config: {
+        ...((workflow.config as Record<string, unknown>) || {}),
+        aiApiKey: undefined,
+        smtpPass: undefined,
+      },
+      version: workflowVersion,
+    }
+
+    if (!ctx.organizationId || !ctx.workspaceId) {
+      // Cannot durable-enqueue without tenant; force sync for this request
+      return await runSyncExecute({
+        ctx,
+        workflow,
+        leads,
+        correlationId,
+        workflowVersion,
+        definitionSnapshot,
+      })
+    }
+
     const executions = await WorkflowExecution.insertMany(
       leads.map((lead: any) => ({
         workflowId: workflow._id,
         leadId: lead._id,
         ownerId: ctx.userId,
-        organizationId: ctx.organizationId || undefined,
-        workspaceId: ctx.workspaceId || undefined,
+        organizationId: ctx.organizationId,
+        workspaceId: ctx.workspaceId,
         status: 'pending',
         currentNodeId: null,
+        nextExecutionAt: new Date(),
+        workflowVersion,
+        definitionSnapshot,
+        correlationId,
       }))
     )
 
-    // Mark leads as in_sequence
     await Lead.updateMany(
       { _id: { $in: leads.map((l: any) => l._id) } },
       { $set: { status: 'in_sequence' } }
@@ -99,50 +134,102 @@ export async function POST(
     workflow.status = 'active'
     await workflow.save()
 
-    // ── Execute workflow for each lead with randomized delays ──
-    // When sending to multiple leads, add a random delay (3-8s) between each
-    // to simulate human-like sending behavior and avoid email provider rate limits
-    const results: { leadName: string; status: string; error?: string }[] = []
-
-    for (let i = 0; i < executions.length; i++) {
-      const exec = executions[i]
-
-      // Random delay between leads (skip for the first one)
-      if (i > 0 && executions.length > 1) {
-        const delayMs = 3000 + Math.floor(Math.random() * 5000) // 3-8 seconds
-        await new Promise(resolve => setTimeout(resolve, delayMs))
-      }
-
-      try {
-        await executeStep(exec._id.toString())
-        const updated = await WorkflowExecution.findById(exec._id).lean() as any
-        const lead = leads.find((l: any) => l._id.toString() === exec.leadId.toString())
-        results.push({
-          leadName: lead ? `${lead.firstName} ${lead.lastName}` : 'Unknown',
-          status: updated?.status || 'completed',
-          error: updated?.errorMessage,
-        })
-      } catch (err: any) {
-        results.push({
-          leadName: 'Unknown',
-          status: 'failed',
-          error: err.message,
-        })
-      }
+    if (!asyncMode) {
+      return await runSyncFromExecutions({ executions, leads })
     }
 
-    const succeeded = results.filter(r => r.status === 'completed').length
-    const failed = results.filter(r => r.status === 'failed').length
+    const jobIds: string[] = []
+    for (const exec of executions) {
+      const { job } = await enqueueJob({
+        organizationId: ctx.organizationId,
+        workspaceId: ctx.workspaceId,
+        initiatedBy: ctx.userId,
+        jobType: 'workflow.execution.resume',
+        payload: { executionId: String(exec._id), workflowId: String(workflow._id) },
+        idempotencyKey: `wf-exec-resume:${String(exec._id)}:v1`,
+        correlationId,
+        priority: 10,
+      })
+      jobIds.push(String((job as { _id: unknown })._id))
+    }
 
-    return NextResponse.json({
-      message: `Workflow executed for ${leads.length} lead${leads.length !== 1 ? 's' : ''} — ${succeeded} succeeded, ${failed} failed`,
-      total: leads.length,
-      succeeded,
-      failed,
-      results,
-      engine: 'local',
-    })
+    return NextResponse.json(
+      {
+        message: `Queued workflow for ${leads.length} lead${leads.length !== 1 ? 's' : ''}`,
+        total: leads.length,
+        mode: 'async',
+        correlationId,
+        executionIds: executions.map((e: { _id: unknown }) => String(e._id)),
+        jobIds,
+        engine: 'automation',
+      },
+      { status: 202 }
+    )
   } catch (error: any) {
     return tenantErrorResponse(error, error?.message || 'Failed to execute workflow')
   }
+}
+
+async function runSyncExecute(params: {
+  ctx: { userId: string; organizationId: string | null; workspaceId: string | null }
+  workflow: any
+  leads: any[]
+  correlationId: string
+  workflowVersion: number
+  definitionSnapshot: Record<string, unknown>
+}) {
+  const executions = await WorkflowExecution.insertMany(
+    params.leads.map((lead: any) => ({
+      workflowId: params.workflow._id,
+      leadId: lead._id,
+      ownerId: params.ctx.userId,
+      organizationId: params.ctx.organizationId || undefined,
+      workspaceId: params.ctx.workspaceId || undefined,
+      status: 'pending',
+      currentNodeId: null,
+      workflowVersion: params.workflowVersion,
+      definitionSnapshot: params.definitionSnapshot,
+      correlationId: params.correlationId,
+    }))
+  )
+  await Lead.updateMany(
+    { _id: { $in: params.leads.map((l: any) => l._id) } },
+    { $set: { status: 'in_sequence' } }
+  )
+  params.workflow.status = 'active'
+  await params.workflow.save()
+  return runSyncFromExecutions({ executions, leads: params.leads })
+}
+
+async function runSyncFromExecutions(params: { executions: any[]; leads: any[] }) {
+  const results: { leadName: string; status: string; error?: string }[] = []
+  for (let i = 0; i < params.executions.length; i++) {
+    const exec = params.executions[i]
+    if (i > 0 && params.executions.length > 1) {
+      await new Promise((resolve) => setTimeout(resolve, 3000 + Math.floor(Math.random() * 5000)))
+    }
+    try {
+      await executeStep(exec._id.toString())
+      const updated = (await WorkflowExecution.findById(exec._id).lean()) as any
+      const lead = params.leads.find((l: any) => l._id.toString() === exec.leadId.toString())
+      results.push({
+        leadName: lead ? `${lead.firstName} ${lead.lastName}` : 'Unknown',
+        status: updated?.status || 'completed',
+        error: updated?.errorMessage,
+      })
+    } catch (err: any) {
+      results.push({ leadName: 'Unknown', status: 'failed', error: err.message })
+    }
+  }
+  const succeeded = results.filter((r) => r.status === 'completed').length
+  const failed = results.filter((r) => r.status === 'failed').length
+  return NextResponse.json({
+    message: `Workflow executed for ${params.leads.length} lead${params.leads.length !== 1 ? 's' : ''} — ${succeeded} succeeded, ${failed} failed`,
+    total: params.leads.length,
+    succeeded,
+    failed,
+    results,
+    mode: 'sync',
+    engine: 'local',
+  })
 }

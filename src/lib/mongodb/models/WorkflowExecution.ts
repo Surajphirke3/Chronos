@@ -8,6 +8,8 @@ const StepHistorySchema = new Schema(
     result: { type: String, enum: ['success', 'failed', 'skipped'], default: 'success' },
     messageGenerated: { type: String },
     delayUsedSeconds: { type: Number },
+    idempotencyKey: { type: String },
+    attempt: { type: Number },
   },
   { _id: false }
 )
@@ -31,6 +33,10 @@ const WorkflowExecutionSchema = new Schema(
     leaseOwner: { type: String },
     leaseExpiresAt: { type: Date },
     retryCount: { type: Number, default: 0 },
+    /** Frozen workflow graph for this execution */
+    workflowVersion: { type: Number },
+    definitionSnapshot: { type: Schema.Types.Mixed },
+    correlationId: { type: String },
   },
   { timestamps: true }
 )
