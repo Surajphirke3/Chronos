@@ -2,8 +2,23 @@
 
 **Branch:** `feat/chronos-v2-phase-4`  
 **Date:** 2026-11-23  
-**Status:** Design pending review — **do not implement payment provider integration until approved**  
+**Status:** **APPROVED** (2026-11-23) — MockRazorpay first; no real Razorpay SDK/credentials; Free bootstrap; enforce flag off  
 **Prerequisite:** Phase 3 on `feat/chronos-v2-phase-3` (tests/typecheck/lint/build green). Phase 2.5 staging migration still operational.
+
+### Approved decisions (locked)
+
+| Topic | Decision |
+|---|---|
+| Provider | Razorpay-first abstraction; **MockRazorpayProvider** in this phase; real `razorpay.provider.ts` deferred; Manual enterprise adapter allowed; **no Stripe** |
+| SDK / credentials | **Do not** install Razorpay SDK; **do not** require gateway credentials; no real charges |
+| Mutations | Org **owner** only |
+| Reads | Org **admin** (and owner); members/guests denied by default |
+| Platform admin | `User.platformRole` only — separate from org billing |
+| New orgs | **Free** plan; **no** automatic trial; trials explicit |
+| Enforcement | `BILLING_ENFORCE_ENTITLEMENTS=false` by default; no silent lockouts |
+| Invoices | Provider references + verified metadata only; **no** GST tax invoices / custom tax math |
+| Money | **INR**; store amounts as **integer minor units** (paise) |
+| Activation | Server-authoritative only; client redirect never activates subscription |
 
 ---
 
