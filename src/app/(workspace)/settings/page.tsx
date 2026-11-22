@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-import { Settings as SettingsIcon, User, Shield, Palette, Sun, Moon, Bot, Key, Eye, EyeOff, Check, Trash2, Mail, Loader2, CheckCircle, ChevronDown, ChevronRight, Globe } from 'lucide-react'
+import { Settings as SettingsIcon, User, Shield, Palette, Sun, Moon, Bot, Key, Eye, EyeOff, Check, Trash2, Mail, Loader2, CheckCircle, ChevronDown, ChevronRight, Globe, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '@/components/providers'
 import { useAIProviderStore } from '@/lib/store/aiProviderStore'
@@ -127,6 +128,24 @@ export default function SettingsPage() {
         </div>
         <h1>Settings</h1>
       </div>
+
+      <section className="card" style={{ padding: '24px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <Building2 size={18} color="var(--brand-600)" />
+          <h2>Organization & workspace</h2>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          <Link href="/settings/organization" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Organization settings
+          </Link>
+          <Link href="/settings/workspace" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Workspace settings
+          </Link>
+          <Link href="/onboarding" style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+            Create or join organization
+          </Link>
+        </div>
+      </section>
 
       {/* Profile Section */}
       <section className="card" style={{ padding: '24px', marginBottom: '20px' }}>

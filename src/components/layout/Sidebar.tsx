@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react'
 import { getInitials } from '@/lib/utils/format'
 import { useTheme } from '@/components/providers'
 import { useT, useLanguageStore } from '@/lib/i18n/useLanguage'
+import WorkspaceSwitcher from '@/components/tenancy/WorkspaceSwitcher'
 
 const navGroups = [
   {
@@ -140,6 +141,8 @@ export default function Sidebar() {
           </span>
         )}
       </div>
+
+      <WorkspaceSwitcher collapsed={collapsed} />
 
       {/* Navigation groups */}
       <nav style={{ flex: 1, padding: '4px 8px', overflowY: 'auto' }}>
