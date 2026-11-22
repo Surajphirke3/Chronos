@@ -70,6 +70,7 @@ export default function Sidebar() {
         { href: '/outreach/workflows', label: t('nav.workflows'), icon: GitBranch },
         { href: '/outreach/workflows/new/builder', label: t('workflow.create'), icon: Plus },
         { href: '/outreach/monitor', label: t('nav.monitor'), icon: Activity },
+        { href: '/automation', label: 'Automation', icon: Activity },
       ],
     },
     {
