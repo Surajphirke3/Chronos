@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
 import { ALL_PROVIDERS } from '@/lib/ai/providers'
 import { assertAiBudget, recordAiUsage } from '@/lib/ai/usage'
+import { requireAiTenantContext } from '@/lib/tenancy/aiGate'
+import { tenantErrorResponse } from '@/lib/tenancy/http'
 
 const ALLOWED_BASE_URL_HOSTS = new Set([
   'api.groq.com',
@@ -33,15 +33,12 @@ function isAllowedBaseUrl(baseUrl: unknown): boolean {
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const ctx = await requireAiTenantContext()
 
-    const budget = await assertAiBudget(session.user.id)
+    const budget = await assertAiBudget(ctx.userId)
     if (budget.ok === false) {
       await recordAiUsage({
-        userId: session.user.id,
+        userId: ctx.userId,
         provider: 'unknown',
         route: '/api/ai/chat',
         outcome: 'rejected',
@@ -82,7 +79,7 @@ export async function POST(req: Request) {
     try {
       const reply = await provider.chat(messages, finalConfig)
       await recordAiUsage({
-        userId: session.user.id,
+        userId: ctx.userId,
         provider: providerId,
         model: finalConfig.model,
         route: '/api/ai/chat',
@@ -91,7 +88,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: reply })
     } catch (error: unknown) {
       await recordAiUsage({
-        userId: session.user.id,
+        userId: ctx.userId,
         provider: providerId,
         model: finalConfig.model,
         route: '/api/ai/chat',
@@ -100,8 +97,6 @@ export async function POST(req: Request) {
       throw error
     }
   } catch (error: unknown) {
-    console.error('AI chat error')
-    const message = error instanceof Error ? error.message : 'AI request failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return tenantErrorResponse(error, error instanceof Error ? error.message : 'AI request failed')
   }
 }

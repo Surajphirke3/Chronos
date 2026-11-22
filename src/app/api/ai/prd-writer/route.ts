@@ -1,8 +1,8 @@
 import { streamGroq } from '@/lib/ai/groq'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
 import { NextResponse } from 'next/server'
 import { assertAiBudget, recordAiUsage } from '@/lib/ai/usage'
+import { requireAiTenantContext } from '@/lib/tenancy/aiGate'
+import { tenantErrorResponse } from '@/lib/tenancy/http'
 
 const SYSTEM_PROMPT = `You are a senior product manager at a startup.
 Given product details, write a complete PRD in markdown format.
@@ -11,10 +11,9 @@ Be specific and actionable. No fluff. Write in clear, professional prose.`
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const ctx = await requireAiTenantContext()
 
-    const budget = await assertAiBudget(session.user.id)
+    const budget = await assertAiBudget(ctx.userId)
     if (budget.ok === false) {
       return NextResponse.json({ error: budget.error }, { status: budget.status })
     }
@@ -26,7 +25,7 @@ export async function POST(req: Request) {
     }
 
     await recordAiUsage({
-      userId: session.user.id,
+      userId: ctx.userId,
       provider: 'groq',
       route: '/api/ai/prd-writer',
       outcome: 'success',
@@ -63,7 +62,6 @@ export async function POST(req: Request) {
       },
     })
   } catch (error) {
-    console.error('AI prd-writer error:', error)
-    return NextResponse.json({ error: 'PRD generation failed. Please try again.' }, { status: 500 })
+    return tenantErrorResponse(error, 'PRD generation failed. Please try again.')
   }
 }
