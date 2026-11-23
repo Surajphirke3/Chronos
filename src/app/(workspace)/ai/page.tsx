@@ -262,12 +262,21 @@ function SummarizerPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       })
-      const data = await res.json().catch(() => ({})) as { error?: string }
+      const data = await res.json().catch(() => ({})) as {
+        error?: string
+        summary?: string
+        decisions?: string[]
+        actionItems?: { task: string; owner?: string }[]
+      }
       if (!res.ok) {
         toast.error(data.error || `Summarization failed (${res.status})`)
         return
       }
-      setResult(data)
+      setResult({
+        summary: data.summary || '',
+        decisions: data.decisions || [],
+        actionItems: data.actionItems || [],
+      })
     } catch {
       toast.error('Summarization failed')
     } finally {
