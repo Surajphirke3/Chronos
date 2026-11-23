@@ -25,5 +25,6 @@ const TaskSchema = new Schema(
 )
 
 TaskSchema.index({ projectId: 1, status: 1, position: 1 })
+TaskSchema.index({ assigneeId: 1, status: 1 })
 
 export const Task = (models.Task || model('Task', TaskSchema)) as any

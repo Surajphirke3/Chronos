@@ -3,6 +3,26 @@ import { UserSettings } from '@/lib/mongodb/models/UserSettings'
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
+import { maskSecret, shouldUpdateSecret } from '@/lib/auth/access'
+import { encryptSecret, SecretEncryptionError } from '@/lib/security/secrets'
+
+function sanitizeSettingsForClient(settings: Record<string, unknown> | null, fallbackEmail = '', fallbackName = '') {
+  const emailSecret = maskSecret(settings?.emailAppPassword as string | undefined)
+  const aiSecret = maskSecret(settings?.aiApiKey as string | undefined)
+
+  return {
+    emailProvider: settings?.emailProvider || 'gmail',
+    emailAddress: settings?.emailAddress || fallbackEmail,
+    emailAppPassword: '',
+    emailAppPasswordSet: emailSecret.isSet,
+    emailFromName: settings?.emailFromName || fallbackName,
+    aiProvider: settings?.aiProvider || 'groq',
+    aiApiKey: '',
+    aiApiKeySet: aiSecret.isSet,
+    aiModel: settings?.aiModel || 'llama-3.3-70b-versatile',
+    aiBaseUrl: settings?.aiBaseUrl || '',
+  }
+}
 
 export async function GET() {
   try {
@@ -13,24 +33,17 @@ export async function GET() {
 
     await connectDB()
 
-    let settings = await UserSettings.findOne({ userId: session.user.id }).lean()
-    if (!settings) {
-      // Return defaults
-      settings = {
-        emailProvider: 'gmail',
-        emailAddress: session.user.email || '',
-        emailAppPassword: '',
-        emailFromName: session.user.name || '',
-        aiProvider: 'groq',
-        aiApiKey: '',
-        aiModel: 'llama-3.3-70b-versatile',
-        aiBaseUrl: '',
-      }
-    }
+    const settings = await UserSettings.findOne({ userId: session.user.id }).lean() as Record<string, unknown> | null
 
-    return NextResponse.json({ settings })
+    return NextResponse.json({
+      settings: sanitizeSettingsForClient(
+        settings,
+        session.user.email || '',
+        session.user.name || ''
+      ),
+    })
   } catch (error) {
-    console.error('Error fetching user settings:', error)
+    console.error('Error fetching user settings')
     return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 })
   }
 }
@@ -50,27 +63,45 @@ export async function PUT(req: Request) {
 
     await connectDB()
 
+    const $set: Record<string, unknown> = {
+      userId: session.user.id,
+    }
+
+    if (emailProvider !== undefined) $set.emailProvider = emailProvider
+    if (emailAddress !== undefined) $set.emailAddress = emailAddress
+    if (emailFromName !== undefined) $set.emailFromName = emailFromName
+    if (aiProvider !== undefined) $set.aiProvider = aiProvider
+    if (aiModel !== undefined) $set.aiModel = aiModel
+    if (aiBaseUrl !== undefined) $set.aiBaseUrl = aiBaseUrl
+
+    if (shouldUpdateSecret(emailAppPassword)) {
+      $set.emailAppPassword = encryptSecret(String(emailAppPassword).trim())
+    }
+    if (shouldUpdateSecret(aiApiKey)) {
+      $set.aiApiKey = encryptSecret(String(aiApiKey).trim())
+    }
+
     const settings = await UserSettings.findOneAndUpdate(
       { userId: session.user.id },
-      {
-        $set: {
-          userId: session.user.id,
-          ...(emailProvider !== undefined && { emailProvider }),
-          ...(emailAddress !== undefined && { emailAddress }),
-          ...(emailAppPassword !== undefined && { emailAppPassword }),
-          ...(emailFromName !== undefined && { emailFromName }),
-          ...(aiProvider !== undefined && { aiProvider }),
-          ...(aiApiKey !== undefined && { aiApiKey }),
-          ...(aiModel !== undefined && { aiModel }),
-          ...(aiBaseUrl !== undefined && { aiBaseUrl }),
-        },
-      },
+      { $set },
       { upsert: true, new: true }
-    ).lean()
+    ).lean() as Record<string, unknown> | null
 
-    return NextResponse.json({ settings })
+    return NextResponse.json({
+      settings: sanitizeSettingsForClient(
+        settings,
+        session.user.email || '',
+        session.user.name || ''
+      ),
+    })
   } catch (error) {
-    console.error('Error saving user settings:', error)
+    if (error instanceof SecretEncryptionError) {
+      return NextResponse.json(
+        { error: 'Secret encryption is not configured on the server' },
+        { status: 503 }
+      )
+    }
+    console.error('Error saving user settings')
     return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 })
   }
 }

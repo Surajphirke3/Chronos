@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-import { Settings as SettingsIcon, User, Shield, Palette, Sun, Moon, Bot, Key, Eye, EyeOff, Check, Trash2, Mail, Loader2, CheckCircle, ChevronDown, ChevronRight, Globe } from 'lucide-react'
+import { Settings as SettingsIcon, User, Shield, Palette, Sun, Moon, Bot, Key, Eye, EyeOff, Check, Trash2, Mail, Loader2, CheckCircle, ChevronDown, ChevronRight, Globe, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '@/components/providers'
 import { useAIProviderStore } from '@/lib/store/aiProviderStore'
@@ -23,12 +24,13 @@ export default function SettingsPage() {
     title: '',
   })
 
-  // Email & AI settings from server
+  // Email & AI settings from server (secrets are never returned in plaintext)
   const [emailConfig, setEmailConfig] = useState({
     emailAddress: '',
     emailAppPassword: '',
     emailFromName: '',
   })
+  const [emailAppPasswordSet, setEmailAppPasswordSet] = useState(false)
   const [savingEmail, setSavingEmail] = useState(false)
   const [savingAI, setSavingAI] = useState(false)
   const [emailSaved, setEmailSaved] = useState(false)
@@ -44,9 +46,10 @@ export default function SettingsPage() {
         if (data.settings) {
           setEmailConfig({
             emailAddress: data.settings.emailAddress || session?.user?.email || '',
-            emailAppPassword: data.settings.emailAppPassword || '',
+            emailAppPassword: '',
             emailFromName: data.settings.emailFromName || session?.user?.name || '',
           })
+          setEmailAppPasswordSet(Boolean(data.settings.emailAppPasswordSet))
         }
       })
       .catch(() => {})
@@ -56,12 +59,23 @@ export default function SettingsPage() {
   const handleSaveEmail = async () => {
     setSavingEmail(true)
     try {
+      const payload: Record<string, string> = {
+        emailAddress: emailConfig.emailAddress,
+        emailFromName: emailConfig.emailFromName,
+      }
+      // Only send password when the user entered a new value
+      if (emailConfig.emailAppPassword.trim()) {
+        payload.emailAppPassword = emailConfig.emailAppPassword.trim()
+      }
       const res = await fetch('/api/user/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(emailConfig),
+        body: JSON.stringify(payload),
       })
       if (res.ok) {
+        const data = await res.json()
+        setEmailAppPasswordSet(Boolean(data.settings?.emailAppPasswordSet))
+        setEmailConfig((prev) => ({ ...prev, emailAppPassword: '' }))
         setEmailSaved(true)
         toast.success('Email settings saved! Workflows will use this to send emails.')
         setTimeout(() => setEmailSaved(false), 3000)
@@ -114,6 +128,46 @@ export default function SettingsPage() {
         </div>
         <h1>Settings</h1>
       </div>
+
+      <section className="card" style={{ padding: '24px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <Building2 size={18} color="var(--brand-600)" />
+          <h2>Organization & workspace</h2>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          <Link href="/settings/organization" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Organization settings
+          </Link>
+          <Link href="/settings/workspace" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Workspace settings
+          </Link>
+          <Link href="/settings/roles" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Custom roles
+          </Link>
+          <Link href="/settings/audit-logs" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Audit logs
+          </Link>
+          <Link href="/settings/api-keys" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            API keys
+          </Link>
+          <Link href="/settings/security" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Security
+          </Link>
+          <Link href="/settings/data-governance" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Data governance
+          </Link>
+          <Link href="/platform" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Platform admin
+          </Link>
+          <Link href="/onboarding" style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+            Create or join organization
+          </Link>
+        </div>
+        <p style={{ marginTop: 12, fontSize: 12, color: 'var(--text-secondary)' }}>
+          Billing settings are not available yet (Phase 4 runtime incomplete). Governance pages
+          require server feature flags — see docs/chronos-v2/CURRENT_STATUS.md.
+        </p>
+      </section>
 
       {/* Profile Section */}
       <section className="card" style={{ padding: '24px', marginBottom: '20px' }}>
@@ -185,12 +239,14 @@ export default function SettingsPage() {
             <input
               className="input"
               type="password"
-              placeholder="16-character app password from Google"
+              placeholder={emailAppPasswordSet ? 'App password saved — enter a new one to replace' : '16-character app password from Google'}
               value={emailConfig.emailAppPassword}
               onChange={(e) => setEmailConfig({ ...emailConfig, emailAppPassword: e.target.value })}
+              autoComplete="new-password"
             />
             <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
               Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" style={{ color: 'var(--text-brand)' }}>Google App Passwords</a> → Create one for &quot;Chronos&quot; → Paste the 16 characters here.
+              {emailAppPasswordSet ? ' A password is already stored securely; leave blank to keep it.' : ''}
             </p>
           </div>
           <div>
@@ -206,7 +262,7 @@ export default function SettingsPage() {
             <button className="btn-primary" onClick={handleSaveEmail} disabled={savingEmail} style={{ alignSelf: 'flex-start' }}>
               {savingEmail ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Saving...</> : emailSaved ? <><CheckCircle size={14} /> Saved!</> : 'Save Email Settings'}
             </button>
-            {emailConfig.emailAppPassword && (
+            {(emailAppPasswordSet || emailConfig.emailAppPassword) && (
               <span style={{ fontSize: '12px', color: 'var(--success-text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <CheckCircle size={12} /> Email configured
               </span>

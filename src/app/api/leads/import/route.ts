@@ -1,15 +1,27 @@
 import { connectDB } from '@/lib/mongodb/client'
 import { Lead } from '@/lib/mongodb/models/Lead'
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
 import Papa from 'papaparse'
+import { checkRateLimit, RATE_LIMITS } from '@/lib/security/rateLimit'
+import { getActiveTenantContext } from '@/lib/tenancy/context'
+import { isMultiTenantEnforced } from '@/lib/tenancy/flags'
+import { tenantErrorResponse } from '@/lib/tenancy/http'
+import { workspaceRoleAtLeast } from '@/lib/tenancy/roles'
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const ctx = await getActiveTenantContext({ requireWorkspace: isMultiTenantEnforced() })
+    if (ctx.workspaceRole && !workspaceRoleAtLeast(ctx.workspaceRole, 'member')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const rate = await checkRateLimit(
+      `lead-import:${ctx.userId}`,
+      RATE_LIMITS.leadImport.limit,
+      RATE_LIMITS.leadImport.windowMs
+    )
+    if (!rate.allowed) {
+      return NextResponse.json({ error: 'Lead import rate limit exceeded' }, { status: 429 })
     }
 
     await connectDB()
@@ -19,6 +31,15 @@ export async function POST(req: Request) {
 
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
+    }
+
+    const MAX_IMPORT_BYTES = 5 * 1024 * 1024 // 5 MB
+    const MAX_IMPORT_ROWS = 5000
+    if (typeof file.size === 'number' && file.size > MAX_IMPORT_BYTES) {
+      return NextResponse.json(
+        { error: 'File too large. Maximum import size is 5 MB.' },
+        { status: 400 }
+      )
     }
 
     const text = await file.text()
@@ -64,6 +85,13 @@ export async function POST(req: Request) {
     } else {
       return NextResponse.json(
         { error: 'Unsupported file format. Please upload .csv or .xlsx' },
+        { status: 400 }
+      )
+    }
+
+    if (rows.length > MAX_IMPORT_ROWS) {
+      return NextResponse.json(
+        { error: `Too many rows. Maximum import is ${MAX_IMPORT_ROWS} leads per file.` },
         { status: 400 }
       )
     }
@@ -122,7 +150,9 @@ export async function POST(req: Request) {
         linkedinUrl: headerMap['linkedinUrl'] ? row[headerMap['linkedinUrl']] || '' : '',
         phone: headerMap['phone'] ? row[headerMap['phone']] || '' : '',
         status: 'new',
-        ownerId: session.user.id,
+        ownerId: ctx.userId,
+        organizationId: ctx.organizationId || undefined,
+        workspaceId: ctx.workspaceId || undefined,
       })
     }
 
@@ -142,7 +172,6 @@ export async function POST(req: Request) {
       message: `Successfully imported ${leads.length} leads${skipped > 0 ? ` (${skipped} skipped)` : ''}`,
     })
   } catch (error) {
-    console.error('Lead import error:', error)
-    return NextResponse.json({ error: 'Failed to import leads' }, { status: 500 })
+    return tenantErrorResponse(error, 'Failed to import leads')
   }
 }

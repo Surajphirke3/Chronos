@@ -33,6 +33,8 @@ const WorkflowSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     description: { type: String, trim: true, default: '' },
+    organizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
+    workspaceId: { type: Schema.Types.ObjectId, ref: 'Workspace' },
     ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     nodes: { type: [WorkflowNodeSchema], default: [] },
     edges: { type: [WorkflowEdgeSchema], default: [] },
@@ -41,6 +43,8 @@ const WorkflowSchema = new Schema(
       enum: ['draft', 'active', 'paused', 'archived'],
       default: 'draft',
     },
+    /** Incremented when definition meaningfully changes; copied onto executions */
+    version: { type: Number, default: 1 },
     config: {
       maxActionsPerHour: { type: Number, default: 50 },
       maxActionsPerDay: { type: Number, default: 200 },
@@ -66,5 +70,6 @@ const WorkflowSchema = new Schema(
 )
 
 WorkflowSchema.index({ ownerId: 1, status: 1 })
+WorkflowSchema.index({ workspaceId: 1, status: 1 })
 
 export const Workflow = (models.Workflow || model('Workflow', WorkflowSchema)) as any

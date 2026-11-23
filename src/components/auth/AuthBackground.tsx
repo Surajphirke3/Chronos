@@ -245,7 +245,7 @@ function FloatingCard({ title, desc, color, x, y, delay, rotate, theme }: {
           rotate: [rotate, rotate + 1.5, rotate - 1.5, rotate],
         }}
         transition={{
-          y: { duration: 5 + Math.random() * 2, repeat: Infinity, ease: 'easeInOut' },
+          y: { duration: 5 + (Math.abs(rotate) % 2), repeat: Infinity, ease: 'easeInOut' },
           rotate: { duration: 8, repeat: Infinity, ease: 'easeInOut' },
         }}
       >

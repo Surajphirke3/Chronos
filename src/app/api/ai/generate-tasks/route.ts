@@ -1,7 +1,8 @@
 import { callGroq } from '@/lib/ai/groq'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
 import { NextResponse } from 'next/server'
+import { assertAiBudget, recordAiUsage } from '@/lib/ai/usage'
+import { requireAiTenantContext } from '@/lib/tenancy/aiGate'
+import { tenantErrorResponse } from '@/lib/tenancy/http'
 
 const SYSTEM_PROMPT = `You are a project management expert.
 Given a feature description, output a JSON object with a "tasks" array.
@@ -10,8 +11,12 @@ Output ONLY valid JSON. No markdown, no explanation.`
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const ctx = await requireAiTenantContext()
+
+    const budget = await assertAiBudget(ctx.userId)
+    if (budget.ok === false) {
+      return NextResponse.json({ error: budget.error }, { status: budget.status })
+    }
 
     const { featureDescription, projectContext } = await req.json()
 
@@ -26,9 +31,14 @@ export async function POST(req: Request) {
     )
 
     const parsed = JSON.parse(result)
+    await recordAiUsage({
+      userId: ctx.userId,
+      provider: 'groq',
+      route: '/api/ai/generate-tasks',
+      outcome: 'success',
+    })
     return NextResponse.json(parsed)
   } catch (error) {
-    console.error('AI generate-tasks error:', error)
-    return NextResponse.json({ error: 'AI generation failed. Please try again.' }, { status: 500 })
+    return tenantErrorResponse(error, 'AI generation failed. Please try again.')
   }
 }

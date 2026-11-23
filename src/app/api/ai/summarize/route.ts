@@ -1,7 +1,8 @@
 import { callGroq } from '@/lib/ai/groq'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
 import { NextResponse } from 'next/server'
+import { assertAiBudget, recordAiUsage } from '@/lib/ai/usage'
+import { requireAiTenantContext } from '@/lib/tenancy/aiGate'
+import { tenantErrorResponse } from '@/lib/tenancy/http'
 
 const SYSTEM_PROMPT = `You are a precise summarizer for startup teams.
 Given meeting notes or raw text, return a JSON object with:
@@ -12,8 +13,12 @@ Output ONLY valid JSON. No markdown.`
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const ctx = await requireAiTenantContext()
+
+    const budget = await assertAiBudget(ctx.userId)
+    if (budget.ok === false) {
+      return NextResponse.json({ error: budget.error }, { status: budget.status })
+    }
 
     const { text } = await req.json()
 
@@ -23,10 +28,15 @@ export async function POST(req: Request) {
 
     const result = await callGroq(SYSTEM_PROMPT, text, true)
     const parsed = JSON.parse(result)
+    await recordAiUsage({
+      userId: ctx.userId,
+      provider: 'groq',
+      route: '/api/ai/summarize',
+      outcome: 'success',
+    })
 
     return NextResponse.json(parsed)
   } catch (error) {
-    console.error('AI summarize error:', error)
-    return NextResponse.json({ error: 'Summarization failed. Please try again.' }, { status: 500 })
+    return tenantErrorResponse(error, 'Summarization failed. Please try again.')
   }
 }

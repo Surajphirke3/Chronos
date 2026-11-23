@@ -4,7 +4,7 @@ import { getToken } from 'next-auth/jwt'
 export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request })
 
-  if (!token) {
+  if (!token?.id) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('callbackUrl', request.url)
     return NextResponse.redirect(loginUrl)
@@ -18,6 +18,7 @@ export const config = {
     '/dashboard/:path*',
     '/projects/:path*',
     '/docs/:path*',
+    '/messages/:path*',
     '/team/:path*',
     '/ai/:path*',
     '/settings/:path*',
@@ -31,5 +32,7 @@ export const config = {
     '/api/leads/:path*',
     '/api/workflows/:path*',
     '/api/outreach/:path*',
+    '/api/chats/:path*',
+    '/api/user/:path*',
   ],
 }

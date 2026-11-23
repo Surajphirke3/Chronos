@@ -2,6 +2,7 @@ import { Schema, model, models } from 'mongoose'
 
 const AnnouncementSchema = new Schema(
   {
+    organizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
     title: { type: String, required: true },
     body: { type: String },
     authorId: { type: Schema.Types.ObjectId, ref: 'User' },

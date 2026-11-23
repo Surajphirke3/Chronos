@@ -19,12 +19,17 @@ export function useTheme() {
 }
 
 export function LandingThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark')
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return 'dark'
+    const saved = (localStorage.getItem('theme') || localStorage.getItem('landing-theme')) as Theme | null
+    return saved === 'light' || saved === 'dark' ? saved : 'dark'
+  })
 
   useEffect(() => {
-    const saved = (localStorage.getItem('theme') || localStorage.getItem('landing-theme')) as Theme | null
-    if (saved) setTheme(saved)
-  }, [])
+    document.documentElement.setAttribute('data-theme', theme)
+    if (theme === 'dark') document.documentElement.classList.add('dark')
+    else document.documentElement.classList.remove('dark')
+  }, [theme])
 
   const toggleTheme = () => {
     setTheme((prev) => {

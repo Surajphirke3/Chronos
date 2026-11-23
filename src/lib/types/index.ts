@@ -108,6 +108,9 @@ declare module 'next-auth' {
       name: string
       email: string
       role: string
+      platformRole?: string
+      activeOrganizationId?: string | null
+      activeWorkspaceId?: string | null
       image?: string
     }
   }
@@ -121,6 +124,10 @@ declare module 'next-auth/jwt' {
   interface JWT {
     id: string
     role: string
+    platformRole?: string
+    activeOrganizationId?: string | null
+    activeWorkspaceId?: string | null
+    roleCheckedAt?: number
   }
 }
 

@@ -8,6 +8,8 @@ const StepHistorySchema = new Schema(
     result: { type: String, enum: ['success', 'failed', 'skipped'], default: 'success' },
     messageGenerated: { type: String },
     delayUsedSeconds: { type: Number },
+    idempotencyKey: { type: String },
+    attempt: { type: Number },
   },
   { _id: false }
 )
@@ -16,6 +18,8 @@ const WorkflowExecutionSchema = new Schema(
   {
     workflowId: { type: Schema.Types.ObjectId, ref: 'Workflow', required: true },
     leadId: { type: Schema.Types.ObjectId, ref: 'Lead' },
+    organizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
+    workspaceId: { type: Schema.Types.ObjectId, ref: 'Workspace' },
     ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     currentNodeId: { type: String },
     status: {
@@ -26,6 +30,13 @@ const WorkflowExecutionSchema = new Schema(
     stepHistory: { type: [StepHistorySchema], default: [] },
     nextExecutionAt: { type: Date },
     errorMessage: { type: String },
+    leaseOwner: { type: String },
+    leaseExpiresAt: { type: Date },
+    retryCount: { type: Number, default: 0 },
+    /** Frozen workflow graph for this execution */
+    workflowVersion: { type: Number },
+    definitionSnapshot: { type: Schema.Types.Mixed },
+    correlationId: { type: String },
   },
   { timestamps: true }
 )
@@ -33,6 +44,8 @@ const WorkflowExecutionSchema = new Schema(
 WorkflowExecutionSchema.index({ workflowId: 1, status: 1 })
 WorkflowExecutionSchema.index({ leadId: 1 })
 WorkflowExecutionSchema.index({ ownerId: 1, status: 1 })
+WorkflowExecutionSchema.index({ status: 1, nextExecutionAt: 1 })
+WorkflowExecutionSchema.index({ status: 1, leaseExpiresAt: 1 })
 
 export const WorkflowExecution =
   (models.WorkflowExecution || model('WorkflowExecution', WorkflowExecutionSchema)) as any

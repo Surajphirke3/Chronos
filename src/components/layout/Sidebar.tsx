@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react'
 import { getInitials } from '@/lib/utils/format'
 import { useTheme } from '@/components/providers'
 import { useT, useLanguageStore } from '@/lib/i18n/useLanguage'
+import WorkspaceSwitcher from '@/components/tenancy/WorkspaceSwitcher'
 
 const navGroups = [
   {
@@ -69,6 +70,7 @@ export default function Sidebar() {
         { href: '/outreach/workflows', label: t('nav.workflows'), icon: GitBranch },
         { href: '/outreach/workflows/new/builder', label: t('workflow.create'), icon: Plus },
         { href: '/outreach/monitor', label: t('nav.monitor'), icon: Activity },
+        { href: '/automation', label: 'Automation', icon: Activity },
       ],
     },
     {
@@ -140,6 +142,8 @@ export default function Sidebar() {
           </span>
         )}
       </div>
+
+      <WorkspaceSwitcher collapsed={collapsed} />
 
       {/* Navigation groups */}
       <nav style={{ flex: 1, padding: '4px 8px', overflowY: 'auto' }}>

@@ -2,30 +2,29 @@ import { connectDB } from '@/lib/mongodb/client'
 import { Lead } from '@/lib/mongodb/models/Lead'
 import { WorkflowExecution } from '@/lib/mongodb/models/WorkflowExecution'
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
 import mongoose from 'mongoose'
+import { getActiveTenantContext, workspaceScopedFilter } from '@/lib/tenancy/context'
+import { isMultiTenantEnforced } from '@/lib/tenancy/flags'
+import { mergeMongoFilters, tenantErrorResponse } from '@/lib/tenancy/http'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
+    const ctx = await getActiveTenantContext({ requireWorkspace: isMultiTenantEnforced() })
     await connectDB()
 
-    // Cast to ObjectId for aggregate $match (string won't match ObjectId fields)
-    let ownerObjId: any
+    let ownerObjId: mongoose.Types.ObjectId | string
     try {
-      ownerObjId = new mongoose.Types.ObjectId(session.user.id)
+      ownerObjId = new mongoose.Types.ObjectId(ctx.userId)
     } catch {
-      ownerObjId = session.user.id
+      ownerObjId = ctx.userId
     }
 
-    // Lead counts by status
+    const scope = workspaceScopedFilter(ctx)
+    const legacyOwner = ctx.workspaceId ? {} : { ownerId: ownerObjId }
+    const match = mergeMongoFilters(scope, legacyOwner)
+
     const leadCounts = await Lead.aggregate([
-      { $match: { ownerId: ownerObjId } },
+      { $match: match },
       { $group: { _id: '$status', count: { $sum: 1 } } },
     ])
 
@@ -36,9 +35,8 @@ export async function GET() {
       totalLeads += item.count
     }
 
-    // Execution counts by status
     const execCounts = await WorkflowExecution.aggregate([
-      { $match: { ownerId: ownerObjId } },
+      { $match: match },
       { $group: { _id: '$status', count: { $sum: 1 } } },
     ])
 
@@ -47,8 +45,7 @@ export async function GET() {
       execStats[item._id] = item.count
     }
 
-    // Recent executions with lead info
-    const executions = await WorkflowExecution.find({ ownerId: session.user.id })
+    const executions = await WorkflowExecution.find(match)
       .sort({ updatedAt: -1 })
       .limit(100)
       .populate('leadId', 'firstName lastName email company status')
@@ -77,7 +74,6 @@ export async function GET() {
       recentExecutions: executions,
     })
   } catch (error) {
-    console.error('Stats error:', error)
-    return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 })
+    return tenantErrorResponse(error, 'Failed to fetch stats')
   }
 }

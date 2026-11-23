@@ -128,7 +128,7 @@ export default function RegisterPage() {
               <label className="label" htmlFor="password">Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--l-text-secondary, var(--text-tertiary))' }} />
-                <input id="password" className="input" type="password" placeholder="••••••••" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} style={{ padding: '12px 14px 12px 42px', fontSize: '15px' }} required minLength={6} />
+                <input id="password" className="input" type="password" placeholder="••••••••" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} style={{ padding: '12px 14px 12px 42px', fontSize: '15px' }} required minLength={8} />
               </div>
             </div>
           </div>

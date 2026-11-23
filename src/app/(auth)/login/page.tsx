@@ -1,17 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react'
 import Image from 'next/image'
-import { signInWithPopup } from 'firebase/auth'
-import { auth, googleProvider } from '@/lib/firebase'
 
 import { useTheme } from '@/components/landing-v2/ThemeContext'
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div style={{ width: '100%', maxWidth: '560px', textAlign: 'center' }}>Loading…</div>}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+function LoginPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { theme } = useTheme()
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -23,6 +30,21 @@ export default function LoginPage() {
     email: '',
     password: '',
   })
+
+  useEffect(() => {
+    const authError = searchParams.get('error')
+    if (!authError) return
+    if (authError === 'OAuthSignin' || authError === 'OAuthCallback' || authError === 'OAuthCreateAccount') {
+      setError('Google sign-in is not available. Check server OAuth configuration.')
+      return
+    }
+    if (authError === 'AccessDenied') {
+      setError('Access denied. Your Google account could not be signed in.')
+      return
+    }
+    // Custom messages returned from the signIn callback
+    setError(decodeURIComponent(authError))
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -145,7 +167,7 @@ export default function LoginPage() {
               <label className="label" htmlFor="password" style={{ color: 'var(--l-text-secondary)' }}>Password</label>
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--l-text-secondary)' }} />
-                <input id="password" className="input" type="password" placeholder="••••••••" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} style={{ paddingLeft: '42px', padding: '12px 14px 12px 42px', fontSize: '15px', background: 'var(--l-bg-card)', color: 'var(--l-text)', border: '1px solid var(--l-border)' }} required minLength={6} />
+                <input id="password" className="input" type="password" placeholder="••••••••" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} style={{ paddingLeft: '42px', padding: '12px 14px 12px 42px', fontSize: '15px', background: 'var(--l-bg-card)', color: 'var(--l-text)', border: '1px solid var(--l-border)' }} required minLength={isLogin ? 1 : 8} />
               </div>
             </div>
           </div>
@@ -168,7 +190,7 @@ export default function LoginPage() {
             <div style={{ flex: 1, height: '1px', background: 'var(--l-border)' }} />
           </div>
 
-          {/* Google Sign-In via Firebase */}
+          {/* Google Sign-In via NextAuth Google OAuth */}
           <button
             type="button"
             disabled={googleLoading}
@@ -176,28 +198,9 @@ export default function LoginPage() {
               setGoogleLoading(true)
               setError('')
               try {
-                const result = await signInWithPopup(auth, googleProvider)
-                const firebaseUser = result.user
-
-                // Pass Firebase user data to NextAuth's firebase-google provider
-                const res = await signIn('firebase-google', {
-                  email: firebaseUser.email || '',
-                  name: firebaseUser.displayName || '',
-                  avatar: firebaseUser.photoURL || '',
-                  redirect: false,
-                })
-
-                if (res?.error) {
-                  setError(res.error)
-                } else {
-                  router.push('/dashboard')
-                  router.refresh()
-                }
-              } catch (err: any) {
-                if (err.code !== 'auth/popup-closed-by-user') {
-                  setError(err.message || 'Google sign-in failed')
-                }
-              } finally {
+                await signIn('google', { callbackUrl: '/dashboard' })
+              } catch {
+                setError('Google sign-in failed. Please try again.')
                 setGoogleLoading(false)
               }
             }}
