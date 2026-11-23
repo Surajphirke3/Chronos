@@ -7,6 +7,7 @@ import { parseWithSchema, objectIdSchema } from '@/lib/api/validation'
 import { apiForbidden, apiNotFound, apiOk, apiUnauthorized } from '@/lib/api/response'
 import { tenantErrorResponse } from '@/lib/tenancy/http'
 import { AppError } from '@/lib/api/errors'
+import { writeCriticalAudit } from '@/lib/governance/audit/service'
 
 const transferSchema = z.object({
   newOwnerUserId: objectIdSchema,
@@ -46,6 +47,16 @@ export async function POST(
       { organizationId: id, userId: parsed.data.newOwnerUserId },
       { $set: { role: 'owner' } }
     )
+
+    await writeCriticalAudit({
+      organizationId: id,
+      actorUserId: ctx.userId,
+      action: 'organization.ownership_transferred',
+      resourceType: 'Organization',
+      resourceId: id,
+      after: { newOwnerUserId: parsed.data.newOwnerUserId },
+      source: 'api',
+    })
 
     return apiOk({ success: true })
   } catch (error) {

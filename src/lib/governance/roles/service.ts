@@ -12,6 +12,7 @@ import {
 import { hasPermission, type PermissionActor } from '@/lib/governance/permissions/evaluate'
 import { isGovernanceCustomRolesEnabled } from '@/lib/governance/flags'
 import { slugify } from '@/lib/tenancy/slug'
+import { writeCriticalAudit } from '@/lib/governance/audit/service'
 
 export function sanitizeDelegablePermissions(
   requested: string[],
@@ -75,6 +76,15 @@ export async function createOrganizationRole(params: {
       version: 1,
       createdBy: params.actor.userId,
       updatedBy: params.actor.userId,
+    })
+    await writeCriticalAudit({
+      organizationId: params.organizationId,
+      actorUserId: params.actor.userId,
+      action: 'role.created',
+      resourceType: 'OrganizationRole',
+      resourceId: String(role._id),
+      after: { slug, permissions },
+      source: 'api',
     })
     return role.toObject()
   } catch (e: unknown) {
@@ -181,6 +191,15 @@ export async function assignRole(params: {
     roleId: params.roleId,
     assignedBy: params.actor.userId,
     status: 'active',
+  })
+  await writeCriticalAudit({
+    organizationId: params.organizationId,
+    actorUserId: params.actor.userId,
+    action: 'role.assigned',
+    resourceType: 'RoleAssignment',
+    resourceId: String(assignment._id),
+    after: { userId: params.userId, roleId: params.roleId },
+    source: 'api',
   })
   return assignment.toObject()
 }
