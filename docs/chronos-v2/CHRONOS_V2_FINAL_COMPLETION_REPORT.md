@@ -99,7 +99,7 @@ Phase 3 leases/DLQ remain core. Export job `governance.export.run` registered. S
 | `0604e34` | Security policies |
 | `0aea0c9` | Data exports |
 | `6dc25ae` | Platform admin |
-| *(subsequent)* | Integrations, AI platform, ops docs, final report |
+| `5e753e5` | Integrations, AI platform, Phase 5–8 docs, final report |
 
 ---
 
