@@ -141,6 +141,21 @@ export default function SettingsPage() {
           <Link href="/settings/workspace" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
             Workspace settings
           </Link>
+          <Link href="/settings/roles" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Custom roles
+          </Link>
+          <Link href="/settings/audit-logs" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Audit logs
+          </Link>
+          <Link href="/settings/api-keys" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            API keys
+          </Link>
+          <Link href="/settings/security" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Security
+          </Link>
+          <Link href="/settings/data-governance" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Data governance
+          </Link>
           <Link href="/onboarding" style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
             Create or join organization
           </Link>
