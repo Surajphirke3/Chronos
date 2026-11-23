@@ -16,6 +16,7 @@ export const JOB_TYPES = [
   'ai.document.summarize',
   'ai.tasks.generate',
   'automation.schedule.tick',
+  'governance.export.run',
 ] as const
 
 export type JobType = (typeof JOB_TYPES)[number] | string
