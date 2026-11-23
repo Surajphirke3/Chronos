@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Upload, FileSpreadsheet, Users, Trash2, Loader2, Search } from 'lucide-react'
+import { Upload, FileSpreadsheet, Users, Trash2, Loader2, Search, UserPlus, X } from 'lucide-react'
 import useSWR, { mutate } from 'swr'
 import { useT, useLanguageStore } from '@/lib/i18n/useLanguage'
 
@@ -27,6 +27,16 @@ const statusTextColors: Record<string, string> = {
   bounced: 'var(--danger-text)',
 }
 
+const emptyManualForm = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  company: '',
+  title: '',
+  phone: '',
+  linkedinUrl: '',
+}
+
 export default function LeadsPage() {
   const t = useT()
   const { hydrate: hydrateLang } = useLanguageStore()
@@ -36,6 +46,9 @@ export default function LeadsPage() {
   const [dragOver, setDragOver] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [search, setSearch] = useState('')
+  const [showManual, setShowManual] = useState(false)
+  const [savingManual, setSavingManual] = useState(false)
+  const [manualForm, setManualForm] = useState(emptyManualForm)
 
   const leads = data?.leads || []
 
@@ -97,6 +110,32 @@ export default function LeadsPage() {
     mutate('/api/leads')
   }
 
+  const handleManualSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSavingManual(true)
+    setMessage(null)
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(manualForm),
+      })
+      const result = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setMessage({ text: result.error || 'Failed to add lead', type: 'error' })
+        return
+      }
+      setMessage({ text: 'Lead added successfully', type: 'success' })
+      setManualForm(emptyManualForm)
+      setShowManual(false)
+      mutate('/api/leads')
+    } catch {
+      setMessage({ text: 'Something went wrong', type: 'error' })
+    } finally {
+      setSavingManual(false)
+    }
+  }
+
   return (
     <div>
       <div style={{ marginBottom: '24px' }}>
@@ -106,54 +145,192 @@ export default function LeadsPage() {
         </p>
       </div>
 
-      {/* Upload area */}
+      {/* Import options: CSV + manual */}
       <div
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
         style={{
-          border: `2px dashed ${dragOver ? 'var(--brand-500)' : 'var(--border-default)'}`,
-          borderRadius: 'var(--radius-lg)',
-          padding: '32px',
-          textAlign: 'center',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap: '16px',
           marginBottom: '24px',
-          background: dragOver ? 'var(--brand-50)' : 'var(--bg-surface)',
-          transition: 'all 150ms ease',
-          cursor: 'pointer',
         }}
-        onClick={() => document.getElementById('file-input')?.click()}
       >
-        <input
-          id="file-input"
-          type="file"
-          accept=".csv,.xlsx,.xls"
-          onChange={handleFileInput}
-          style={{ display: 'none' }}
-        />
-        {uploading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
-            <span>Importing leads...</span>
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          style={{
+            border: `2px dashed ${dragOver ? 'var(--brand-500)' : 'var(--border-default)'}`,
+            borderRadius: 'var(--radius-lg)',
+            padding: '28px 24px',
+            textAlign: 'center',
+            background: dragOver ? 'var(--brand-50)' : 'var(--bg-surface)',
+            transition: 'all 150ms ease',
+            cursor: 'pointer',
+          }}
+          onClick={() => document.getElementById('file-input')?.click()}
+        >
+          <input
+            id="file-input"
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={handleFileInput}
+            style={{ display: 'none' }}
+          />
+          {uploading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+              <span>Importing leads...</span>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+                <div style={{
+                  width: '48px', height: '48px', borderRadius: 'var(--radius-lg)',
+                  background: 'var(--brand-50)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Upload size={22} color="var(--brand-600)" />
+                </div>
+              </div>
+              <p style={{ fontWeight: 500, marginBottom: '4px' }}>
+                Upload CSV / Excel
+              </p>
+              <p style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
+                Drop a file here or click to browse
+              </p>
+            </>
+          )}
+        </div>
+
+        <div
+          style={{
+            border: '2px dashed var(--border-default)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '28px 24px',
+            textAlign: 'center',
+            background: 'var(--bg-surface)',
+            cursor: 'pointer',
+          }}
+          onClick={() => setShowManual(true)}
+        >
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+            <div style={{
+              width: '48px', height: '48px', borderRadius: 'var(--radius-lg)',
+              background: 'var(--brand-50)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <UserPlus size={22} color="var(--brand-600)" />
+            </div>
           </div>
-        ) : (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
-              <div style={{
-                width: '48px', height: '48px', borderRadius: 'var(--radius-lg)',
-                background: 'var(--brand-50)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Upload size={22} color="var(--brand-600)" />
+          <p style={{ fontWeight: 500, marginBottom: '4px' }}>
+            Add lead manually
+          </p>
+          <p style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
+            Enter name, email, and company details
+          </p>
+        </div>
+      </div>
+
+      {showManual && (
+        <div
+          className="card"
+          style={{ padding: '20px', marginBottom: '24px' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>Add lead manually</h3>
+            <button
+              type="button"
+              className="btn-ghost"
+              style={{ padding: '4px' }}
+              onClick={() => setShowManual(false)}
+              aria-label="Close"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <form onSubmit={handleManualSubmit}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+              <div>
+                <label className="label" style={{ fontSize: '12px' }}>First name *</label>
+                <input
+                  className="input"
+                  required
+                  value={manualForm.firstName}
+                  onChange={(e) => setManualForm((f) => ({ ...f, firstName: e.target.value }))}
+                  placeholder="Jane"
+                />
+              </div>
+              <div>
+                <label className="label" style={{ fontSize: '12px' }}>Last name</label>
+                <input
+                  className="input"
+                  value={manualForm.lastName}
+                  onChange={(e) => setManualForm((f) => ({ ...f, lastName: e.target.value }))}
+                  placeholder="Doe"
+                />
+              </div>
+              <div>
+                <label className="label" style={{ fontSize: '12px' }}>Email *</label>
+                <input
+                  className="input"
+                  type="email"
+                  required
+                  value={manualForm.email}
+                  onChange={(e) => setManualForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="jane@company.com"
+                />
+              </div>
+              <div>
+                <label className="label" style={{ fontSize: '12px' }}>Company</label>
+                <input
+                  className="input"
+                  value={manualForm.company}
+                  onChange={(e) => setManualForm((f) => ({ ...f, company: e.target.value }))}
+                  placeholder="Acme Inc"
+                />
+              </div>
+              <div>
+                <label className="label" style={{ fontSize: '12px' }}>Title</label>
+                <input
+                  className="input"
+                  value={manualForm.title}
+                  onChange={(e) => setManualForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder="Head of Product"
+                />
+              </div>
+              <div>
+                <label className="label" style={{ fontSize: '12px' }}>Phone</label>
+                <input
+                  className="input"
+                  value={manualForm.phone}
+                  onChange={(e) => setManualForm((f) => ({ ...f, phone: e.target.value }))}
+                  placeholder="+1 555 0100"
+                />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label className="label" style={{ fontSize: '12px' }}>LinkedIn URL</label>
+                <input
+                  className="input"
+                  value={manualForm.linkedinUrl}
+                  onChange={(e) => setManualForm((f) => ({ ...f, linkedinUrl: e.target.value }))}
+                  placeholder="https://linkedin.com/in/…"
+                />
               </div>
             </div>
-            <p style={{ fontWeight: 500, marginBottom: '4px' }}>
-              Drop your file here or click to browse
-            </p>
-            <p style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
-              Supports .csv and .xlsx files
-            </p>
-          </>
-        )}
-      </div>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+              <button type="submit" className="btn-primary" disabled={savingManual}>
+                {savingManual ? (
+                  <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</>
+                ) : (
+                  <><UserPlus size={14} /> Add lead</>
+                )}
+              </button>
+              <button type="button" className="btn-ghost" onClick={() => setShowManual(false)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {message && (
         <div style={{
@@ -206,7 +383,7 @@ export default function LeadsPage() {
           <Users size={32} color="var(--text-tertiary)" style={{ margin: '0 auto 12px' }} />
           <p style={{ fontWeight: 500, marginBottom: '4px' }}>{t('leads.noLeads')}</p>
           <p style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
-            Upload a CSV or Excel file to import your leads
+            Upload a CSV/Excel file or add a lead manually
           </p>
         </div>
       ) : (
