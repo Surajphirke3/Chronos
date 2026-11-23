@@ -1,7 +1,7 @@
-# Chronos V2 — Phase 5 RBAC (Checkpoint 1)
+# Chronos V2 — Phase 5 RBAC
 
 **Branch:** `feat/chronos-v2-phase-5`  
-**Status:** Permission catalog + evaluation foundation (no route migration)
+**Status:** Catalog + evaluation **and** custom roles shipped. Most product routes still use role-rank helpers until `GOVERNANCE_ENFORCEMENT_ENABLED` (default off).
 
 ---
 
@@ -119,9 +119,11 @@ Helpers: `src/lib/governance/flags.ts`.
 
 ---
 
-## 6. Authorization paths — CP1 status
+## 6. Authorization paths — current status
 
-### Deliberately unchanged (still authoritative)
+Custom roles load via `buildPermissionActor` → `extraPermissions` when `GOVERNANCE_CUSTOM_ROLES_ENABLED=true`.
+
+### Deliberately unchanged product routes (still authoritative)
 
 | Path | Mechanism |
 |---|---|

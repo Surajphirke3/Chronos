@@ -27,10 +27,10 @@ Chronos now includes:
 | Phase | Status | Key commits | Tests | Remaining blockers |
 |---|---|---|---|---|
 | Phase 5 | **Complete with limitations** | `98eb580`…`6dc25ae` | unit covered | Staging flag drills; retention apply; route migration under enforcement flag |
-| Phase 6 | **Foundation / limited** | (integrations commit) | webhook signing | Live OAuth credentials; delivery worker; marketplace UI |
-| Phase 7 | **Foundation / limited** | (AI platform commit) | RAG chunking | Embeddings; agent runtime; approvals execution |
-| Phase 8 | **Docs + helpers / not prod** | (ops docs commit) | full suite green | Backups, load tests, staging ops |
-| Phase 4 | **Incomplete** | models on phase-4 ancestry | model/state tests | Mock gateway, APIs, UI, usage aggregates |
+| Phase 6 | **Foundation / limited** | `5e753e5` | webhook signing | Live OAuth credentials; delivery worker; marketplace UI |
+| Phase 7 | **Foundation / limited** | `5e753e5` | RAG chunking | Embeddings; agent runtime; approvals execution |
+| Phase 8 | **Docs + helpers / not prod** | `5e753e5` / `975b4df` | full suite green | Backups, load tests, staging ops |
+| Phase 4 | **Incomplete** | `9b1c623` (+ docs) | model/state tests | Mock gateway, APIs, UI, usage aggregates |
 
 ---
 
@@ -100,6 +100,9 @@ Phase 3 leases/DLQ remain core. Export job `governance.export.run` registered. S
 | `0aea0c9` | Data exports |
 | `6dc25ae` | Platform admin |
 | `5e753e5` | Integrations, AI platform, Phase 5–8 docs, final report |
+| `975b4df` | Final report commit-hash note |
+
+**Clear status index:** [`CURRENT_STATUS.md`](./CURRENT_STATUS.md)
 
 ---
 

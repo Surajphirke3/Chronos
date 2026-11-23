@@ -1,37 +1,41 @@
 # Chronos V2 — Master Plan
 
-**Phase 0–2.5 complete (staging ops remaining) · Phase 3 automation implemented with limitations · Phase 4 billing models started · Phase 5 governance architecture proposed**  
-**Date:** 2026-11-23
+**Status snapshot:** See [`CURRENT_STATUS.md`](./CURRENT_STATUS.md) first.  
+**Branch:** `feat/chronos-v2-phase-5` · **Date:** 2026-11-23  
+
+**Summary:** Phases 0–3 code-complete with staging ops remaining · Phase 4 billing **models only** · Phases 5–8 **implemented with limitations** (flags off) · **NOT production ready**
 
 ---
 
 ## 1. Verified current capabilities
 
 - Next.js 16 App Router monolith with MongoDB/Mongoose
-- Credentials auth + Firebase Google (server token verify)
+- Credentials auth + native Google OAuth (NextAuth; Firebase removed in Phase 1)
+- Organizations / workspaces / memberships / invitations (Phase 2)
 - Projects, tasks (Kanban), docs (TipTap), messaging (polling), team directory
-- User settings for Gmail SMTP + AI keys (redacted on read)
-- Outreach: lead import, workflow builder, synchronous execute, stats/monitor
+- User settings for Gmail SMTP + AI keys (encrypted at rest; redacted on read)
+- Outreach workflows with async execute + durable job resume (Phase 3)
+- Automation dashboard, schedules (once/interval), AI background job types
+- Governance: permission catalog, custom roles, audit, API keys, security policies, exports, platform admin (Phase 5; **flags off**)
+- Integration provider catalog + webhook signing foundations (Phase 6; **flags off**)
+- Knowledge bases + lexical RAG foundations (Phase 7; **flags off**)
 - AI tools: summarize, PRD writer (stream), generate-tasks (env Groq)
 - i18n + theme
-- Membership-based project ACL (Phase 0)
 
 ---
 
-## 2. Verified gaps
+## 2. Current gaps (remaining)
 
 | Gap | Impact |
 |-----|--------|
-| No Organization/Workspace tenancy | Blocks multi-tenant BOS |
-| Paused workflows never resume | Outreach sequences incomplete |
-| Sync execute in HTTP | Timeouts / poor scale |
-| Secrets plaintext at rest | Compliance / breach risk |
-| No password reset / email verify | Auth incompleteness |
-| No invites; open registration risk | Tenant contamination |
-| No CI, Docker, health checks | Delivery risk |
-| Thin automated tests | Regression risk |
-| README overclaims (n8n, Server Actions, AI SDK) | Trust / onboarding |
+| Phase 4 billing runtime (APIs/UI/mock gateway) missing | Cannot sell or meter commercially |
+| `MULTI_TENANT_ENFORCE` not staging-approved | Dual-read still active |
+| Production workers / cron not verified | Automation reliability unknown in ops |
+| Live OAuth integrations not connected | Catalog only |
+| Agent runtime / embeddings deferred | AI platform incomplete |
+| No password reset / email verify (credentials) | Auth polish |
 | Announcements / notifications stubs | Product polish |
+| README may still overclaim some features | Trust / onboarding |
 
 ---
 
@@ -42,25 +46,26 @@
 | Stack | Keep Next.js + Mongoose + NextAuth | Non-negotiable Phase 0 rule |
 | Tenancy | Organization + Workspace + Memberships | Implemented Phase 2; dual-read until enforce |
 | ACL precursor | Project owner/member/admin | Matches existing schema |
-| Google auth | Verify Firebase ID token server-side | Closes account takeover |
-| Queues | Defer introduction | Fix only if immediate; resume worker is Phase 1 |
+| Google auth | Native Google OAuth via NextAuth | Firebase removed |
+| Queues | Mongo durable jobs (Phase 3) | No Redis/Kafka required |
 | API style | Continue Route Handlers | No parallel Server Actions rewrite |
-| Secrets | Redact now; encrypt Phase 1 | Safe incremental hardening |
+| Secrets | Encrypted at rest (Phase 1) | AES-GCM |
 
-**Billing unit:** Organization (locked; see Phase 4 architecture).  
-**Governance:** Organization-scoped custom roles + immutable audit + API keys (Phase 5; architecture pending review).
+**Billing unit:** Organization (locked; Phase 4 runtime still incomplete).  
+**Governance:** Implemented on this branch behind flags — see `CURRENT_STATUS.md` and `PHASE_5_*.md`.
 
 ---
 
 ## 4. Phase dependencies
 
 ```
-Phase 0 (Foundation) ──► Phase 1 (Security & Reliability)
-                         ├─► Phase 2 (Multi-tenancy schema + ACL)
-                         ├─► Phase 3 (Async workflows / jobs)
-                         ├─► Phase 4 (Billing / subscriptions / usage — in progress)
-                         ├─► Phase 5 (Enterprise governance & security — architecture)
-                         └─► Later product expansion (attachments, notifications, polish)
+Phase 0 ──► Phase 1 ──► Phase 2 / 2.5 ──► Phase 3
+                                    ├─► Phase 4 (billing runtime — incomplete)
+                                    ├─► Phase 5 (governance — done w/ limitations)
+                                    ├─► Phase 6 (integrations foundation)
+                                    ├─► Phase 7 (AI platform foundation)
+                                    ├─► Phase 8 (ops docs / helpers)
+                                    └─► Later product expansion
 ```
 
 ---

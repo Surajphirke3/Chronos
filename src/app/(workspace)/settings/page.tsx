@@ -156,10 +156,17 @@ export default function SettingsPage() {
           <Link href="/settings/data-governance" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
             Data governance
           </Link>
+          <Link href="/platform" style={{ color: 'var(--brand-700)', fontSize: 14 }}>
+            Platform admin
+          </Link>
           <Link href="/onboarding" style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
             Create or join organization
           </Link>
         </div>
+        <p style={{ marginTop: 12, fontSize: 12, color: 'var(--text-secondary)' }}>
+          Billing settings are not available yet (Phase 4 runtime incomplete). Governance pages
+          require server feature flags — see docs/chronos-v2/CURRENT_STATUS.md.
+        </p>
       </section>
 
       {/* Profile Section */}

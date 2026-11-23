@@ -3,7 +3,8 @@
 **Branch:** `feat/chronos-v2-phase-4`  
 **Date:** 2026-11-23  
 **Status:** **APPROVED** (2026-11-23) — MockRazorpay first; no real Razorpay SDK/credentials; Free bootstrap; enforce flag off  
-**Prerequisite:** Phase 3 on `feat/chronos-v2-phase-3` (tests/typecheck/lint/build green). Phase 2.5 staging migration still operational.
+**Implementation progress:** Checkpoint 1 models committed (`Plan`, `Subscription`, payments, etc.). **Runtime not shipped** (no MockRazorpay provider, billing APIs, `/settings/billing`, or usage aggregates yet). See [`CURRENT_STATUS.md`](./CURRENT_STATUS.md).  
+**Prerequisite:** Phase 3 automation available. Phase 2.5 staging migration still operational.
 
 ### Approved decisions (locked)
 

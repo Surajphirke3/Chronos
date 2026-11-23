@@ -2,6 +2,8 @@
 
 **Status: NOT PRODUCTION READY**
 
+**Start here for the live snapshot:** [`CURRENT_STATUS.md`](./CURRENT_STATUS.md)
+
 Ready for **staging verification** of governance foundations, automation workers, and tenancy dual-read.
 
 ## Blocking for production

@@ -2,14 +2,14 @@
 
 **Branch:** `feat/chronos-v2-phase-5`  
 **Date:** 2026-11-23  
-**Status:** Architecture **approved**. Checkpoint 1 (permission catalog) implemented. CP2+ pending review.  
-**Based on:** live tree including Phase 3 + Phase 4 Checkpoint 1 billing models only
+**Status:** Architecture **approved** · Checkpoints **0–8 implemented with limitations** (feature flags default off).  
+**See also:** [`CURRENT_STATUS.md`](./CURRENT_STATUS.md), [`PHASE_5_RBAC.md`](./PHASE_5_RBAC.md), [`CHRONOS_V2_FINAL_COMPLETION_REPORT.md`](./CHRONOS_V2_FINAL_COMPLETION_REPORT.md)
 
 ### Approved review answers (locked)
 
 1. Custom roles are **additive** to system role maps in v1.  
 2. `billing.manage` remains **organization-owner-only**; custom roles cannot grant it.  
-3. Security-critical ops fail closed if durable audit write fails (CP3+).  
+3. Security-critical ops fail closed if durable audit write fails when audit flag is on.  
 4. MFA remains **unsupported** — no fake toggle.  
 5. Existing system role semantics must remain compatible.
 
@@ -18,8 +18,14 @@
 | CP | Status |
 |---|---|
 | 0 Architecture | Done |
-| 1 Permission catalog + evaluation | Done — see `PHASE_5_RBAC.md` |
-| 2+ Custom roles, audit, keys, … | Not started |
+| 1 Permission catalog + evaluation | Done |
+| 2 Custom roles | Done (flag `GOVERNANCE_CUSTOM_ROLES_ENABLED`) |
+| 3 Audit events + UI | Done (flag `GOVERNANCE_AUDIT_LOGS_ENABLED` for fail-closed) |
+| 4 API keys + `/api/v1/me` | Done (flag `GOVERNANCE_API_KEYS_ENABLED`) |
+| 5 Security policies | Done (flag `GOVERNANCE_SECURITY_POLICIES_ENABLED`; MFA unsupported) |
+| 6 Data export | Done foundation (flag `GOVERNANCE_DATA_EXPORT_ENABLED`; retention apply deferred) |
+| 7 Platform admin | Done (`/platform`, `platformRole` only) |
+| 8 Hardening + docs | Done docs/rollout; staging drills still required |
 
 ---
 
