@@ -1,4 +1,5 @@
 import { resolveGroqApiKeyForUser, streamGroq } from '@/lib/ai/groq'
+import { NextResponse } from 'next/server'
 import { assertAiBudget, recordAiUsage } from '@/lib/ai/usage'
 import { requireAiTenantContext } from '@/lib/tenancy/aiGate'
 import { tenantErrorResponse } from '@/lib/tenancy/http'
