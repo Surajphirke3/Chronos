@@ -138,12 +138,26 @@ export default function AIPage() {
   )
 }
 
+function useActiveAiPayload() {
+  const { activeProviderId, configs } = useAIProviderStore()
+  const cfg = configs[activeProviderId]
+  return {
+    providerId: activeProviderId,
+    config: {
+      apiKey: cfg?.apiKey || '',
+      baseUrl: cfg?.baseUrl || '',
+      model: cfg?.model || '',
+    },
+  }
+}
+
 /* ─── Task Generator ──────────────────────────────────── */
 function TaskGeneratorPanel({ projects }: { projects: any[] }) {
   const [description, setDescription] = useState('')
   const [projectId, setProjectId] = useState('')
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<any[] | null>(null)
+  const aiPayload = useActiveAiPayload()
 
   const handleGenerate = async () => {
     if (!description) return
@@ -156,6 +170,7 @@ function TaskGeneratorPanel({ projects }: { projects: any[] }) {
         body: JSON.stringify({
           featureDescription: description,
           projectContext: projects.find((p) => p._id === projectId)?.name || '',
+          ...aiPayload,
         }),
       })
       const data = await res.json().catch(() => ({})) as { tasks?: unknown[]; error?: string }
@@ -252,6 +267,7 @@ function SummarizerPanel() {
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ summary: string; decisions: string[]; actionItems: { task: string; owner?: string }[] } | null>(null)
+  const aiPayload = useActiveAiPayload()
 
   const handleSummarize = async () => {
     if (!text) return
@@ -260,7 +276,7 @@ function SummarizerPanel() {
       const res = await fetch('/api/ai/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, ...aiPayload }),
       })
       const data = await res.json().catch(() => ({})) as {
         error?: string
@@ -336,6 +352,7 @@ function PRDWriterPanel() {
   const [form, setForm] = useState({ productName: '', goals: '', users: '', constraints: '' })
   const [loading, setLoading] = useState(false)
   const [output, setOutput] = useState('')
+  const aiPayload = useActiveAiPayload()
 
   const handleGenerate = async () => {
     if (!form.productName) return
@@ -345,7 +362,7 @@ function PRDWriterPanel() {
       const res = await fetch('/api/ai/prd-writer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, ...aiPayload }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string }

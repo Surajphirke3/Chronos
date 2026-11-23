@@ -1,6 +1,8 @@
-import { resolveGroqApiKeyForUser, streamGroq } from '@/lib/ai/groq'
 import { NextResponse } from 'next/server'
+import { ALL_PROVIDERS } from '@/lib/ai/providers'
+import { resolveServerAiConfig } from '@/lib/ai/serverProvider'
 import { assertAiBudget, recordAiUsage } from '@/lib/ai/usage'
+import { AppError } from '@/lib/api/errors'
 import { requireAiTenantContext } from '@/lib/tenancy/aiGate'
 import { tenantErrorResponse } from '@/lib/tenancy/http'
 
@@ -18,15 +20,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: budget.error }, { status: budget.status })
     }
 
-    const { productName, goals, users, constraints } = await req.json()
+    const body = await req.json()
+    const { productName, goals, users, constraints, providerId, config } = body
 
     if (!productName) {
       return NextResponse.json({ error: 'Product name is required' }, { status: 400 })
     }
 
+    const resolved = await resolveServerAiConfig(ctx.userId, { providerId, config })
+    const provider = ALL_PROVIDERS.find((p) => p.id === resolved.providerId)
+    if (!provider) {
+      throw new AppError(`Unknown AI provider: ${resolved.providerId}`, 400)
+    }
+
     await recordAiUsage({
       userId: ctx.userId,
-      provider: 'groq',
+      provider: resolved.providerId,
+      model: resolved.config.model,
       route: '/api/ai/prd-writer',
       outcome: 'success',
     })
@@ -40,19 +50,34 @@ export async function POST(req: Request) {
       .filter(Boolean)
       .join('\n')
 
-    const apiKey = await resolveGroqApiKeyForUser(ctx.userId)
-    const stream = await streamGroq(SYSTEM_PROMPT, userMessage, apiKey)
+    let stream: ReadableStream<string>
+    try {
+      stream = await provider.stream(
+        [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userMessage },
+        ],
+        resolved.config
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'AI provider request failed'
+      throw new AppError(message.slice(0, 300), 502)
+    }
 
     const encoder = new TextEncoder()
     const readable = new ReadableStream({
       async start(controller) {
-        for await (const chunk of stream) {
-          const text = chunk.choices[0]?.delta?.content || ''
-          if (text) {
-            controller.enqueue(encoder.encode(text))
+        const reader = stream.getReader()
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            if (value) controller.enqueue(encoder.encode(value))
           }
+          controller.close()
+        } catch (error) {
+          controller.error(error)
         }
-        controller.close()
       },
     })
 

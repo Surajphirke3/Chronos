@@ -1,6 +1,7 @@
-import { callGroq, resolveGroqApiKeyForUser } from '@/lib/ai/groq'
 import { NextResponse } from 'next/server'
+import { callServerAiChat } from '@/lib/ai/serverProvider'
 import { assertAiBudget, recordAiUsage } from '@/lib/ai/usage'
+import { AppError } from '@/lib/api/errors'
 import { requireAiTenantContext } from '@/lib/tenancy/aiGate'
 import { tenantErrorResponse } from '@/lib/tenancy/http'
 
@@ -20,18 +21,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: budget.error }, { status: budget.status })
     }
 
-    const { text } = await req.json()
+    const body = await req.json()
+    const { text, providerId, config } = body
 
     if (!text) {
       return NextResponse.json({ error: 'Text is required' }, { status: 400 })
     }
 
-    const apiKey = await resolveGroqApiKeyForUser(ctx.userId)
-    const result = await callGroq(SYSTEM_PROMPT, text, true, apiKey)
-    const parsed = JSON.parse(result)
+    const result = await callServerAiChat({
+      userId: ctx.userId,
+      override: { providerId, config },
+      json: true,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: text },
+      ],
+    })
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(result.text)
+    } catch {
+      throw new AppError('AI returned invalid JSON. Try again or switch model.', 502)
+    }
+
     await recordAiUsage({
       userId: ctx.userId,
-      provider: 'groq',
+      provider: result.providerId,
+      model: result.model,
       route: '/api/ai/summarize',
       outcome: 'success',
     })
