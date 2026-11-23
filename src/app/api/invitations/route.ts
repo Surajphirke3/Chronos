@@ -78,6 +78,15 @@ export async function POST(req: Request) {
       actorOrgRole = orgCtx.orgRole
     }
 
+    const {
+      assertGuestAccessAllowed,
+      assertInviteEmailAllowed,
+      getOrCreateSecurityPolicy,
+    } = await import('@/lib/governance/security/policy')
+    const policy = await getOrCreateSecurityPolicy(parsed.data.organizationId)
+    assertInviteEmailAllowed(policy, parsed.data.email)
+    if (parsed.data.role === 'guest') assertGuestAccessAllowed(policy)
+
     const result = await createInvitation({
       organizationId: parsed.data.organizationId,
       workspaceId: parsed.data.workspaceId,
