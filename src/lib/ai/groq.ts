@@ -1,25 +1,68 @@
 import Groq from 'groq-sdk'
+import { AppError } from '@/lib/api/errors'
+import { connectDB } from '@/lib/mongodb/client'
+import { UserSettings } from '@/lib/mongodb/models/UserSettings'
+import { decryptSecret, SecretEncryptionError } from '@/lib/security/secrets'
 
-let groqClient: Groq | null = null
+const clientsByKey = new Map<string, Groq>()
 
-function getGroq(): Groq {
-  if (!process.env.GROQ_API_KEY) {
-    throw new Error(
-      'GROQ_API_KEY is not configured. Set it in the environment to use server-side AI features.'
-    )
+function getGroq(apiKey: string): Groq {
+  let client = clientsByKey.get(apiKey)
+  if (!client) {
+    client = new Groq({ apiKey })
+    clientsByKey.set(apiKey, client)
   }
-  if (!groqClient) {
-    groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY })
+  return client
+}
+
+/**
+ * Prefer the user's saved AI key (BYOK), then fall back to server GROQ_API_KEY.
+ */
+export async function resolveGroqApiKeyForUser(userId: string): Promise<string> {
+  await connectDB()
+  const settings = (await UserSettings.findOne({ userId }).lean()) as {
+    aiApiKey?: string
+  } | null
+
+  if (settings?.aiApiKey) {
+    try {
+      const userKey = decryptSecret(String(settings.aiApiKey)).trim()
+      if (userKey) return userKey
+    } catch (error) {
+      if (error instanceof SecretEncryptionError) {
+        throw new AppError(
+          'Saved AI API key cannot be decrypted. Check CHRONOS_ENCRYPTION_KEY on the server.',
+          503
+        )
+      }
+      throw error
+    }
   }
-  return groqClient
+
+  const envKey = process.env.GROQ_API_KEY?.trim()
+  if (envKey) return envKey
+
+  throw new AppError(
+    'No AI API key configured. Save a key in Settings (BYOK) or set GROQ_API_KEY on the server.',
+    503
+  )
 }
 
 export async function callGroq(
   systemPrompt: string,
   userMessage: string,
-  json = false
+  json = false,
+  apiKey?: string
 ): Promise<string> {
-  const completion = await getGroq().chat.completions.create({
+  const key = apiKey?.trim() || process.env.GROQ_API_KEY?.trim()
+  if (!key) {
+    throw new AppError(
+      'No AI API key configured. Save a key in Settings (BYOK) or set GROQ_API_KEY on the server.',
+      503
+    )
+  }
+
+  const completion = await getGroq(key).chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: systemPrompt },
@@ -33,8 +76,16 @@ export async function callGroq(
   return completion.choices[0]?.message?.content ?? ''
 }
 
-export async function streamGroq(systemPrompt: string, userMessage: string) {
-  return getGroq().chat.completions.create({
+export async function streamGroq(systemPrompt: string, userMessage: string, apiKey?: string) {
+  const key = apiKey?.trim() || process.env.GROQ_API_KEY?.trim()
+  if (!key) {
+    throw new AppError(
+      'No AI API key configured. Save a key in Settings (BYOK) or set GROQ_API_KEY on the server.',
+      503
+    )
+  }
+
+  return getGroq(key).chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: systemPrompt },

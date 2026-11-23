@@ -80,8 +80,11 @@ export default function SettingsPage() {
         toast.success('Email settings saved! Workflows will use this to send emails.')
         setTimeout(() => setEmailSaved(false), 3000)
       } else {
-        toast.error('Failed to save email settings')
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        toast.error(data.error || `Failed to save email settings (${res.status})`)
       }
+    } catch {
+      toast.error('Failed to save email settings')
     } finally {
       setSavingEmail(false)
     }
@@ -107,8 +110,11 @@ export default function SettingsPage() {
         toast.success('AI settings saved! Workflows will use this provider.')
         setTimeout(() => setAISaved(false), 3000)
       } else {
-        toast.error('Failed to save AI settings')
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        toast.error(data.error || `Failed to save AI settings (${res.status})`)
       }
+    } catch {
+      toast.error('Failed to save AI settings')
     } finally {
       setSavingAI(false)
     }

@@ -158,8 +158,12 @@ function TaskGeneratorPanel({ projects }: { projects: any[] }) {
           projectContext: projects.find((p) => p._id === projectId)?.name || '',
         }),
       })
-      const data = await res.json()
-      setResults(data.tasks || [])
+      const data = await res.json().catch(() => ({})) as { tasks?: unknown[]; error?: string }
+      if (!res.ok) {
+        toast.error(data.error || `AI generation failed (${res.status})`)
+        return
+      }
+      setResults(Array.isArray(data.tasks) ? data.tasks : [])
     } catch {
       toast.error('AI generation failed')
     } finally {
@@ -258,7 +262,11 @@ function SummarizerPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) {
+        toast.error(data.error || `Summarization failed (${res.status})`)
+        return
+      }
       setResult(data)
     } catch {
       toast.error('Summarization failed')
@@ -330,6 +338,11 @@ function PRDWriterPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        toast.error(data.error || `PRD generation failed (${res.status})`)
+        return
+      }
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
       if (reader) {

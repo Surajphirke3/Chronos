@@ -1,4 +1,4 @@
-import { callGroq } from '@/lib/ai/groq'
+import { callGroq, resolveGroqApiKeyForUser } from '@/lib/ai/groq'
 import { NextResponse } from 'next/server'
 import { assertAiBudget, recordAiUsage } from '@/lib/ai/usage'
 import { requireAiTenantContext } from '@/lib/tenancy/aiGate'
@@ -26,7 +26,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Text is required' }, { status: 400 })
     }
 
-    const result = await callGroq(SYSTEM_PROMPT, text, true)
+    const apiKey = await resolveGroqApiKeyForUser(ctx.userId)
+    const result = await callGroq(SYSTEM_PROMPT, text, true, apiKey)
     const parsed = JSON.parse(result)
     await recordAiUsage({
       userId: ctx.userId,

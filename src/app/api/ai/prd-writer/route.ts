@@ -1,5 +1,4 @@
-import { streamGroq } from '@/lib/ai/groq'
-import { NextResponse } from 'next/server'
+import { resolveGroqApiKeyForUser, streamGroq } from '@/lib/ai/groq'
 import { assertAiBudget, recordAiUsage } from '@/lib/ai/usage'
 import { requireAiTenantContext } from '@/lib/tenancy/aiGate'
 import { tenantErrorResponse } from '@/lib/tenancy/http'
@@ -40,7 +39,8 @@ export async function POST(req: Request) {
       .filter(Boolean)
       .join('\n')
 
-    const stream = await streamGroq(SYSTEM_PROMPT, userMessage)
+    const apiKey = await resolveGroqApiKeyForUser(ctx.userId)
+    const stream = await streamGroq(SYSTEM_PROMPT, userMessage, apiKey)
 
     const encoder = new TextEncoder()
     const readable = new ReadableStream({

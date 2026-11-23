@@ -1,4 +1,4 @@
-import { callGroq } from '@/lib/ai/groq'
+import { callGroq, resolveGroqApiKeyForUser } from '@/lib/ai/groq'
 import { NextResponse } from 'next/server'
 import { assertAiBudget, recordAiUsage } from '@/lib/ai/usage'
 import { requireAiTenantContext } from '@/lib/tenancy/aiGate'
@@ -24,10 +24,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Feature description is required' }, { status: 400 })
     }
 
+    const apiKey = await resolveGroqApiKeyForUser(ctx.userId)
     const result = await callGroq(
       SYSTEM_PROMPT,
       `Project context: ${projectContext || 'General startup project'}\n\nFeature to break down: ${featureDescription}`,
-      true
+      true,
+      apiKey
     )
 
     const parsed = JSON.parse(result)
