@@ -149,18 +149,46 @@ Phase 0 (Foundation) ──► Phase 1 (Security & Reliability)
 
 ### Phase 5 — Enterprise governance & security
 
-**Status: CP1 complete on `feat/chronos-v2-phase-5` (catalog + evaluation; routes unchanged). CP2+ pending.**
+**Status: implemented with limitations on `feat/chronos-v2-phase-5` (feature flags default off; staging verification required).**
 
-1. [x] Permission catalog + evaluation (compat with existing roles) — `PHASE_5_RBAC.md`  
-2. [ ] Organization custom roles  
-3. [ ] Immutable `AuditEvent` + dashboard  
-4. [ ] Organization API keys (hashed secrets, scopes)  
-5. [ ] Organization security policies (no fake MFA)  
-6. [ ] Data export / retention via Phase 3 jobs  
-7. [ ] Platform governance controls (`platformRole` only)  
-8. [ ] Hardening, migration dry-run, docs, staging flags off by default  
+1. [x] Permission catalog + evaluation — `PHASE_5_RBAC.md`  
+2. [x] Organization custom roles  
+3. [x] Immutable `AuditEvent` + dashboard  
+4. [x] Organization API keys (hashed secrets, scopes)  
+5. [x] Organization security policies (no fake MFA)  
+6. [x] Data export via Phase 3 jobs (retention apply deferred)  
+7. [x] Platform governance console (`platformRole` only)  
+8. [x] Docs + flags-off rollout plan  
 
 See `docs/chronos-v2/PHASE_5_ARCHITECTURE.md`.
+
+### Phase 6 — Integrations & ecosystem
+
+**Status: foundation implemented with limitations (catalog + webhook crypto; live OAuth deferred).**
+
+1. [x] Provider registry + connection model  
+2. [x] Webhook endpoint/delivery models + HMAC signing  
+3. [x] Public API probe `/api/v1/me`  
+4. [ ] Live Slack/GitHub/Google OAuth (blocked on credentials)  
+5. [ ] Outbound webhook delivery worker  
+
+### Phase 7 — AI intelligence platform
+
+**Status: foundation implemented with limitations (KB + lexical RAG; agent runtime deferred).**
+
+1. [x] Knowledge bases + document ingest/chunking  
+2. [x] Tenant-scoped retrieval  
+3. [x] Agent + human approval models  
+4. [ ] Full agent tool runtime  
+5. [ ] Embedding/vector ranking  
+
+### Phase 8 — Production scale & reliability
+
+**Status: observability helpers + runbooks; NOT production ready.**
+
+1. [x] Structured logging helper  
+2. [x] DR / deployment / security audit docs  
+3. [ ] Staging load + backup verification (ops)  
 
 ### Later — Product expansion (deferred)
 
